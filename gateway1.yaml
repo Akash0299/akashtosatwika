@@ -1,0 +1,25 @@
+name: LinuxGateway
+description: Device profile for Linux Gateway
+manufacturer: LT
+model: LG_1234
+labels:
+  - linux
+  - gateway
+  - REST
+deviceResources:
+  - name: cpu_usage
+    description: CPU usage percentage
+    properties:
+      valueType: Float32
+      readWrite: RW
+      units: percentage
+  - name: memory_usage
+    description: Memory usage percentage
+    properties:
+      valueType: Float32
+      readWrite: RW
+      units: metres per second squared
+
+      
+    
+     
