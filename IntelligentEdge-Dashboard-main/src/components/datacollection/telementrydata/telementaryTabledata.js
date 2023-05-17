@@ -24,13 +24,6 @@ const MenuProps = {
         },
     },
 };
-const names = [
-    'Sensor-01',
-    'Sensor-02',
-    'Sensor-03',
-    'Sensor-04',
-    'Sensor-05',
-];
 function getStyles(name, personName, theme) {
     return {
         fontWeight:
@@ -104,8 +97,9 @@ const columns = [
 function TelementaryTabledata() {
 
 	let [val, setVal] = useState([]);
+	let [tableval, setTableVal] = useState([]);
 	useEffect(()=>{
-	axios.get('http://localhost:5000/gatewaydata/api/v1/telemetrydata/all')
+	axios.get('http://172.30.122.183:5000/gatewaydata/api/v1/name/getdevicenames/all')
 	.then(response =>{
 	console.log(response.data);
 	setVal(response.data);
@@ -113,11 +107,18 @@ function TelementaryTabledata() {
 	.catch(console.error);
 	},[]);
 
-
+    const fetchtabledata = (gateway) => {
+           axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/telemetrydata/${gateway}/all`)
+	.then(response =>{
+	console.log(response.data);
+	setTableVal(response.data);
+	})
+    }
     //Selct Gateway Dropdown
     const [selectgateway, setgateway] = React.useState('');
     const gatewayhandleChange = (event) => {
         setgateway(event.target.value);
+        fetchtabledata(event.target.value);
     };
 
     //Selct Device/Sensor Dropdown    
@@ -140,7 +141,36 @@ function TelementaryTabledata() {
         <React.Fragment>
             <div className="secondwrapper">
                 <div className="dropdownselect">
+                    
+                    
                     <div className="selectdropdown">
+                        <FormControl sx={{ m: 1, minWidth: 170 }} size="small">
+                            <InputLabel id="demo-select-small">Select Gateway</InputLabel>
+                            <Select labelId="demo-select-small" id="demo-select-small" value={selectgateway} label="Select Gateway" onChange={gatewayhandleChange}>
+                                {val.map(item =>(
+              	<MenuItem key={item} value={item}>
+              	{item}
+              	</MenuItem>
+              ))}
+                            </Select>
+                        </FormControl>
+                    </div>
+                   
+                </div>
+                <div className="table_wrapper devicetable">
+                    <MUIDataTable data={tableval} columns={columns} options={options} />
+                </div>
+            </div>
+        </React.Fragment>
+    )
+}
+export default TelementaryTabledata;
+
+
+
+
+/*
+<div className="selectdropdown">
                         <DatePicker
                             selectsRange={true}
                             startDate={startDate}
@@ -154,40 +184,4 @@ function TelementaryTabledata() {
                             closeOnScroll={true}
                         />
                     </div>
-                    
-                    <div className="selectdropdown">
-                        <FormControl sx={{ m: 1, minWidth: 170 }} size="small">
-                            <InputLabel id="demo-select-small">Select Gateway</InputLabel>
-                            <Select labelId="demo-select-small" id="demo-select-small" value={selectgateway} label="Select Gateway" onChange={gatewayhandleChange}>
-                                <MenuItem value="">
-                                    <em>None</em>
-                                </MenuItem>
-                                <MenuItem value={10}>Gateway-01</MenuItem>
-                                <MenuItem value={20}>Gateway-02</MenuItem>
-                                <MenuItem value={30}>Gateway-03</MenuItem>
-                                <MenuItem value={40}>Gateway-04</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </div>
-                    <div className="selectdropdown">
-                        <FormControl sx={{ m: 1, width: 170 }} size="small">
-                            <InputLabel id="demo-multiple-name-label">Device/Sensor Name</InputLabel>
-                            <Select labelId="demo-multiple-name-label" id="demo-multiple-name" multiple value={personName} onChange={handleChange} input={<OutlinedInput label="Device/Sensor Name" />} renderValue={(selected) => selected.join(', ')} MenuProps={MenuProps}>
-                                {names.map((name) => (
-                                    <MenuItem key={name} value={name} style={getStyles(name, personName, theme)}>
-                                        <Checkbox checked={personName.indexOf(name) > -1} />
-                                        {name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </div>
-                </div>
-                <div className="table_wrapper devicetable">
-                    <MUIDataTable data={val} columns={columns} options={options} />
-                </div>
-            </div>
-        </React.Fragment>
-    )
-}
-export default TelementaryTabledata;
+*/

@@ -8,7 +8,7 @@ function GatewayCountgraph() {
     let [key, setKey] = useState([]);
 	let [val, setVal] = useState([]);
 	useEffect(()=>{
-	axios.get('http://localhost:5000/gatewaydata/api/v1/count/gatewaywrtmanu')
+	axios.get('http://172.30.122.183:5000/gatewaydata/api/v1/count/gatewaywrtmanu')
 	.then(response =>{
 	console.log(response);
 	setKey(Object.keys(response.data));

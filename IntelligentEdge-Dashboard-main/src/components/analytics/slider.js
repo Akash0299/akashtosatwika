@@ -39,14 +39,17 @@ function getStyles(name, personName, theme) {
 }
 
 function SliderSizes() {
+  let [gatewayiotdevices,setGatewayiotdevices] = useState([]);   
+  let [telemetryData, setTelemetryData] = useState([]);
+  const theme = useTheme();
+  const [selected,setSelected] = useState(0);
+  const [personName, setPersonName] = React.useState([]);
 
-
-   const [devices, setDevices] = useState([]);
+  const [devices, setDevices] = useState([]);
   useEffect(() => {
     const fetchData = async () => {
-    axios.get(`http://localhost:5000/gatewaydata/api/v1/name/getdevicenames/all`)
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/name/getdevicenames/all`)
 		.then(response =>{
-		//console.log(response.data);
 		setDevices(response.data); 
 		})
   }
@@ -55,22 +58,44 @@ function SliderSizes() {
   
   const [selectdevice, setdevice] = React.useState('CarbondioxideSensor');
   
-
+  const fetchdatatelemetry = (devicename) => {
+    
+       axios.get(`http://172.30.122.183:5000/iotdevicedata/api/v1/data/${selectdevice}/minmax/${devicename}`)
+		.then(response =>{
+		console.log(response.data);
+		setTelemetryData(cur => [...cur,response.data]);
+		
+	}) 
+    }
+    
+  const handleChange = (event) => {
+         const {
+            target: { value },
+        } = event;
+        setPersonName(
+            typeof value === 'string' ? value.split(',') : value,
+        );
+        console.log(value);
+        setTelemetryData([]);
+        value.forEach( (item,index) => {
+        fetchdatatelemetry(item);
+        })
+        setSelected(value);
+        console.log(telemetryData);
+    };
+  
+  
+  const [selectiotdevice, setiotdevice] = React.useState('');
     //Selct device Dropdown
   const devicehandleChange = (event) => {
     setdevice(event.target.value);
-  
     const fetchData = async () => {
-    let ch =[];
-	axios.get(`http://localhost:5000/gatewaydata/api/v1/data/minmax/${event.target.value}`)
-		    .then((response) => {
-		      console.log(response.data);
-		      const resvalues = Object.values(response.data);
-		      console.log(resvalues);
-		      ch.push({device:event.target.value, min: resvalues[0][0],max: resvalues[0][1]})
-		        setDataval(ch);
-		    });
-	 }
+    setTelemetryData([]);
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/getiotdevices/${event.target.value}`)
+    .then((response) => {
+    setGatewayiotdevices(response.data);
+    });
+  }
   fetchData();
   };
 
@@ -78,7 +103,7 @@ function SliderSizes() {
 	useEffect(() => {
     const minmaxval = () =>{
     	let ch =[];
-	axios.get(`http://localhost:5000/gatewaydata/api/v1/data/minmax/${selectdevice}`)
+	axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/data/minmax/${selectdevice}`)
 		    .then((response) => {
 		      console.log(response.data);
 		      const resvalues = Object.values(response.data);
@@ -98,8 +123,8 @@ function SliderSizes() {
             <div className="dropdownselect">
                 <div className="selectdropdown">
                     <FormControl sx={{ m: 1, minWidth: 170 }} size="small">
-                        <InputLabel id="demo-select-small">Select </InputLabel>
-                        <Select labelId="demo-select-small" id="demo-select-small" value={selectdevice} label="Select Device" onChange={devicehandleChange}>
+                        <InputLabel id="demo-select-small">Select Gateway</InputLabel>
+                        <Select labelId="demo-select-small" id="demo-select-small" value={selectdevice} label="Select Gateway" onChange={devicehandleChange}>
                          {devices.map(item =>(
               	<MenuItem key={item} value={item}>
               	{item}
@@ -108,27 +133,42 @@ function SliderSizes() {
                          </Select>
                     </FormControl>
                 </div>
+                <div className="selectdropdown">
+                        <FormControl sx={{ m: 1, width: 170 }} size="small">
+                            <InputLabel id="demo-multiple-name-label">Device/Sensor Name</InputLabel>
+                            <Select labelId="demo-multiple-name-label" id="demo-multiple-name" multiple value={personName} onChange={handleChange} input={<OutlinedInput label="Device/Sensor Name" />} renderValue={(selected) => selected.join(', ')} MenuProps={MenuProps}>
+                                {gatewayiotdevices.map((name) => (
+                                    <MenuItem key={name} value={name} style={getStyles(name, personName, theme)}>
+                                        <Checkbox checked={personName.indexOf(name) > -1} />
+                                        {name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </div>
             </div>
 
             <div className="r_slider">
                 <div className="r_sliderblock">
-                
-                { dataval.map((dataval) => (
-	            <div key={dataval.device} >
-	            <h3>{dataval.device}</h3>
+                {telemetryData.map((dataval,index) => (
+                 
+                  <div key={personName} >
+                   { dataval.map((d,innerindex) => (
+	            <div key={innerindex} >
+	            <h3>{Object.keys(d)}</h3>
                     
                     <div className="r_slidervalues">
                         <p>Min value</p>
-                        <Slider min = {-100} max = {10000} defaultValue={dataval.min} aria-label="Default" valueLabelDisplay="on" />
+                        <Slider min = {-100} max = {10000} defaultValue={Object.values(d)[0][0]} aria-label="Default" valueLabelDisplay="on" />
                     </div>
                     
                     <div className="r_slidervalues">
                         <p>Max value</p>
-                        <Slider min = {-100} max = {10000} defaultValue={dataval.max} aria-label="Default" valueLabelDisplay="on" />
+                        <Slider min = {-100} max = {10000} defaultValue={Object.values(d)[0][1]} aria-label="Default" valueLabelDisplay="on" />
                     </div>
                     
                 </div> ))}
-                
+                </div> ))}
                 </div> 
             </div>
         </div>

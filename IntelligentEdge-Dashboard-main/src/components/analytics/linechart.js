@@ -5,31 +5,61 @@ import MenuItem from '@mui/material/MenuItem';
 import InputLabel from '@mui/material/InputLabel';
 import FormControl from '@mui/material/FormControl';
 import Select from '@mui/material/Select';
+import { useTheme } from '@mui/material/styles';
+import OutlinedInput from '@mui/material/OutlinedInput';
+import Checkbox from '@mui/material/Checkbox';
+
 import DatePicker from "react-datepicker";
 import "../datacollection/telementrydata/datepicker.css";
 
+const ITEM_HEIGHT = 48;
+const ITEM_PADDING_TOP = 8;
+const MenuProps = {
+    PaperProps: {
+        style: {
+            maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+            width: 250,
+        },
+    },
+};
+
+
+function getStyles(name, personName, theme) {
+    return {
+        fontWeight:
+            personName.indexOf(name) === -1
+                ? theme.typography.fontWeightRegular
+                : theme.typography.fontWeightMedium,
+    };
+}
+
 function LineChart(props) {
       //console.log(props);
+ let [gatewayiotdevices,setGatewayiotdevices] = useState([]);   
+  let [telemetryData, setTelemetryData] = useState([]);
+  const theme = useTheme();
+  const [selected,setSelected] = useState(0);
+  const [personName, setPersonName] = React.useState([]);
   
-  const [devices, setDevices] = useState([]);
+ const [devices, setDevices] = useState([]);
   useEffect(() => {
     const fetchData = async () => {
-    axios.get(`http://localhost:5000/gatewaydata/api/v1/name/getdevicenames/all`)
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/name/getdevicenames/all`)
 		.then(response =>{
-		//console.log(response.data);
 		setDevices(response.data); 
 		})
   }
   fetchData();
   },[]);
   
-  const [selectdevice, setdevice] = React.useState('CarbondioxideSensor');
+  const [selectdevice, setdevice] = React.useState('');
   
   const [data, setData] = useState([]);
 
+    
   useEffect(() => {
     const fetchData = async () => {
-    axios.get(`http://localhost:5000/gatewaydata/api/v1/data/linegraph/${selectdevice}`)
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/data/linegraph/${selectdevice}`)
 		.then(response =>{
 		//console.log(response.data);
 		setData(response.data); 
@@ -38,34 +68,86 @@ function LineChart(props) {
   fetchData();
   },[]);
   
+  const fetchdatatelemetry = (devicename) => {
+    
+       axios.get(`http://172.30.122.183:5000/iotdevicedata/api/v1/data/${selectdevice}/linegraph/${devicename}`)
+		.then(response =>{
+		console.log(response.data);
+		setTelemetryData(cur => [...cur,response.data]);
+		
+	}) 
+    }
+    
+  const [series, setSeries] = useState([]);
+  const [ts,setTs] = useState([]);
+  //For Line chart series options
+ const storeseries = () => {
+    setTs([]);
+    setSeries([]);
+    console.log(telemetryData);
+    telemetryData.forEach((item,index) => {
+    console.log(item);
+    item.forEach((ddata,innerindex) => {
+     const vals=Object.values(ddata);
+     let devname = vals[0][1]
+     let valdata = []
+     vals.forEach((val,inneriindex)=>{
+       valdata.push(val[0]); 
+    });
+     setSeries(item => [...item,
+    {devicename: devname,
+    data : valdata
+    }])
+     setTs(Object.keys(ddata));
+    });
+    });
+    console.log(ts);
+    console.log(series);
+  }
+    
+  const [valdata,setValdata]=useState([]);     
+  const handleChange = (event) => {
+         const {
+            target: { value },
+        } = event;
+        setPersonName(
+            typeof value === 'string' ? value.split(',') : value,
+        );
+        console.log(value);
+        setTelemetryData([]);
+        value.forEach( (item,index) => {
+        fetchdatatelemetry(item);
+        })
+        setSelected(value);
+        console.log(telemetryData);
+        setValdata(Object.values(telemetryData));
+        storeseries();
+    };
+  
   
   //Selct device Dropdown
   const devicehandleChange = (event) => {
     setdevice(event.target.value);
-
-     
     const fetchData = async () => {
-    axios.get(`http://localhost:5000/gatewaydata/api/v1/data/linegraph/${selectdevice}`)
-		.then(response =>{
-		//console.log(response.data);
-		setData(response.data); 
-		})
-  }
-  fetchData();
+    setTelemetryData([]);
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/getiotdevices/${event.target.value}`)
+    .then((response) => {
+    console.log(response.data);
+    setGatewayiotdevices(response.data);
+    });
+    
   };
+  fetchData();
+ }
 
 
   //Date Range Picker options
   const [dateRange, setDateRange] = useState([null, null]);
   const [startDate, endDate] = dateRange;
-
-  //For Line chart series options
-  const series = [
-   {devicename: props.devicename,
-    data : Object.values(data)
-    }
-    ];
-    
+  
+  
+  
+      
 //console.log(series);
   const chartOptions = {
     chart: {
@@ -102,7 +184,7 @@ function LineChart(props) {
       size: 0
     },
     xaxis: {
-      categories: Object.keys(data),
+      categories: ts,
       labels: {
         show: true,
         style: {
@@ -184,7 +266,7 @@ function LineChart(props) {
 
         <div className="selectdropdown">
           <FormControl sx={{ m: 1, minWidth: 170 }} size="small">
-            <InputLabel id="demo-select-small">Select Device</InputLabel>
+            <InputLabel id="demo-select-small">Select Gateway</InputLabel>
             <Select labelId="demo-select-small" id="demo-select-small" value={selectdevice} label="Select Device" onChange={devicehandleChange}>
               {devices.map(item =>(
               	<MenuItem key={item} value={item}>
@@ -194,6 +276,19 @@ function LineChart(props) {
               </Select>
           </FormControl>
         </div>
+        <div className="selectdropdown">
+                        <FormControl sx={{ m: 1, width: 170 }} size="small">
+                            <InputLabel id="demo-multiple-name-label">Device/Sensor Name</InputLabel>
+                            <Select labelId="demo-multiple-name-label" id="demo-multiple-name" multiple value={personName} onChange={handleChange} input={<OutlinedInput label="Device/Sensor Name" />} renderValue={(selected) => selected.join(', ')} MenuProps={MenuProps}>
+                                {gatewayiotdevices.map((name) => (
+                                    <MenuItem key={name} value={name} style={getStyles(name, personName, theme)}>
+                                        <Checkbox checked={personName.indexOf(name) > -1} />
+                                        {name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </div>
       </div>
       <div id="chart">
         <ReactApexChart options={chartOptions} series={series} type="line" height={320} />

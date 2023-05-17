@@ -41,7 +41,7 @@ function ConfigurationTable() {
 	
 	let [val, setVal] = useState([]);
 	useEffect(()=>{
-	axios.get('http://localhost:5000/gatewaydata/api/v1/name/getgatewaydetailsconfig/all')
+	axios.get('http://172.30.122.183:5000/gatewaydata/api/v1/name/getgatewayconfigdetails/all')
 	.then(response =>{
 	console.log(response);
 	setVal(response.data);
@@ -54,7 +54,7 @@ function ConfigurationTable() {
     const [devicename,setDevicename] = useState('');
     const fetchDataRenew = async() =>{
        try{
-         const response = await axios.get(`http://localhost:5000/provision/api/v1/gateway/renew/${devicename}`);
+         const response = await axios.get(`http://172.30.122.183:5000/provision/api/v1/gateway/renew/${devicename}`);
          return response.data;
        }catch(error){
          console.error(error);
@@ -73,7 +73,7 @@ function ConfigurationTable() {
       
       const fetchDataDeprov = async() =>{
        try{
-         const response = await axios.delete(`http://localhost:5000/provision/api/v1/gateway/deprovision/${devicename}`);
+         const response = await axios.delete(`http://172.30.122.183:5000/provision/api/v1/gateway/deprovision/${devicename}`);
          return response.data;
        }catch(error){
          console.error(error);

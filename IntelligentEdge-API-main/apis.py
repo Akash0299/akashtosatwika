@@ -251,21 +251,21 @@ class GatewayDeviceNames(Resource):
              apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
              response = requests.get(apiurl)
              devicelist = response.json()['devices']
-             cnt = 0
-             mp = {}
+             lst = []
              for d in devicelist:
-                  if d['name'] in mp:
-                       mp[d['name']] += 1
-                  else:
-                       mp[d['name']] = 1
-             #print(mp)
-             lst = []         
-             for k,v in mp.items():
-                  t = {'name':k,'data':v}
-                  lst.append(t)
+                 if 'protocols' in d:
+                    for k,v in d['protocols'].items():
+                       if 'Address' in v:
+                          ip = v['Address']
+                 apiurl2 = "http://"+ip+":5000/gatewaydata/api/v1/name/getdevicenames"
+                 res2 = requests.get(apiurl2)
+                 dev = {}
+                 dev['name']=d['name']
+                 dev['devices'] = res2.json()
+                 lst.append(dev)
              return lst                                                                      
          except Exception as e:
-            return e
+             return e
 
 @ns.route('/api/v1/getiotdevices/<devicename>')
 class GatewayIoTDeviceslist(Resource):
@@ -301,384 +301,36 @@ class GatewayIoTDeviceslist(Resource):
          except Exception as e:
             return e
 
-@ns.route('/api/v1/name/getgatewaydetails/all')
-class GatewayDetailsAll(Resource):
-     '''List of gateway and their details'''
-     @ns.doc('Gatewaydetails')
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self):
-         '''Get the list of gateways and their details'''
-         unique_device_names = set({})
-         devices_info = []
-         try:
-             apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
-             response = requests.get(apiurl)
-             deviceslist = response.json()['devices']
-             print(deviceslist)
-             for device in deviceslist:
-                 device_name = device['name']
-                 if device_name not in unique_device_names:
-                     unique_device_names.add(device_name)
-                     status = ''
-                     createdtime = device['created']
-                     #print(createdtime)
-                     time_in_sec = createdtime / pow(10,9)
-                     dt = datetime.fromtimestamp(time_in_sec)
-                     form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
-                     modifiedtime = device['modified']
-                     #print(modifiedtime)
-                     time_in_sec_m = modifiedtime / pow(10,9)
-                     dt_m = datetime.fromtimestamp(time_in_sec_m)
-                     form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
-                     
-                     protocolname = ''
-                     protocolinfo={}
-                     
-                     print(device['protocols'].items())
-                     for k,v in device['protocols'].items():
-                         protocolname = k
-                         protocolinfo = v  
-                     apiurldevprofile = 'http://localhost:59881/api/v2/deviceprofile/name/'+device['profileName']
-                     resp_devprofile=requests.get(apiurldevprofile)
-                     device_profile = resp_devprofile.json()['profile']
-                     
-                     print(device_profile)
-                         
-                     if 'location' not in device:
-                         device['location'] = 'Mysore'
-                     if device['operatingState'] == "UP":
-                         status = 'online'
-                     else:
-                         status = 'offline'
-                     device_info = [
-                         device['id'],
-                         device_name,
-                         v['Address'],
-                         v['Port'], 
-                         device['location'],
-                         '',
-                         device_profile['model'],
-                         device_profile['manufacturer'],
-                         device['profileName'],
-                         device['serviceName'],
-                         device['description'],
-                         status,
-                         'Provisioned',
-                         'Default',
-                         form_dt,
-                         'Active',
-                         form_dt_m,
-                         '',
-                         'Ubuntu 22.04',
-                         'NA',
-                         'Active',
-                         '23.45.67',
-                         'Active'                    
-                     ]
-                     devices_info.append(device_info)
-             return devices_info                                                                    
-         except Exception as e:
-            return e
 
-@ns.route('/api/v1/name/getdevicedetails/all')
-class GatewayDevicesDetailAll(Resource):
-     '''List of devices detail connected to gateway'''
-     @ns.doc('Devicesdetail')
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self):
-         '''Get the list of devices detail'''
-         unique_device_names = set()
-         devices_info = []
-         try:
-            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
-            response = requests.get(apiurl)
-            deviceslist = response.json()['devices']
-            for device in deviceslist:
-                device_name = device['name']
-                if device_name not in unique_device_names:
-                    unique_device_names.add(device_name)
-                    status = ''
-                    address = ''
-                    port = ''
-                    createdtime = device['created']
-                    #print(createdtime)
-                    time_in_sec = createdtime / pow(10,9)
-                    dt = datetime.fromtimestamp(time_in_sec)
-                    form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    modifiedtime = device['modified']
-                    #print(modifiedtime)
-                    time_in_sec_m = modifiedtime / pow(10,9)
-                    dt_m = datetime.fromtimestamp(time_in_sec_m)
-                    form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
-                    if device['operatingState'] == "UP":
-                        status = 'online'
-                    else:
-                        status = 'offline'
-                    device_info = [
-                        device['id'],
-                        device['name'],
-                        device['description'],
-                        device.get('protocols',{}).get('modbus-tcp',{}).get('Address',''),
-                        device.get('protocols',{}).get('modbus-tcp',{}).get('Port',''),
-                        'Hyderabad',
-                        'Lenovo Gateway',
-                        device['id'],
-                        device['serviceName'],
-                        device['profileName'],
-                        status,
-                        '',
-                        '',
-                        form_dt,
-                        '',
-                        form_dt_m                    
-                    ]
-                    devices_info.append(device_info)
-            return devices_info                                                                   
-         except Exception as e:
-            return e
- 
-@ns.route('/api/v1/name/getgatewaydetailsconfig/all')
-class GatewayDetailsConfigAll(Resource):
-     '''List of gateways details for configuration'''
-     @ns.doc('GatewaysConfigdetail')
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self):
-         '''Get the list of gateways detail for configuration'''
-         unique_device_names = set()
-         devices_info = []
-         try:
-            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
-            response = requests.get(apiurl)
-            deviceslist = response.json()['devices']
-            for device in deviceslist:
-                device_name = device['name']
-                if device_name not in unique_device_names:
-                    unique_device_names.add(device_name)
-                    status = ''
-                    createdtime = device['created']
-                    #print(createdtime)
-                    time_in_sec = createdtime / pow(10,9)
-                    dt = datetime.fromtimestamp(time_in_sec)
-                    form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    modifiedtime = device['modified']
-                    #print(modifiedtime)
-                    time_in_sec_m = modifiedtime / pow(10,9)
-                    dt_m = datetime.fromtimestamp(time_in_sec_m)
-                    form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
-                    if device['operatingState'] == "UP":
-                        status = 'online'
-                    else:
-                        status = 'offline'
-                    device_info = [
-                        device['id'],
-                        'Lenovo Gateway',
-                        device.get('protocols',{}).get('modbus-tcp',{}).get('Address',''),
-                        device.get('protocols',{}).get('modbus-tcp',{}).get('Port',''), 
-                        'Hyderabad',
-                        device['profileName'],
-                        device['serviceName'],
-                        device['description'],
-                        status,
-                        '',
-                        '',
-                        form_dt,
-                        'Inactive',
-                        form_dt_m,
-                        '',
-                        '',
-                        '',
-                        'Ubuntu 22.04',
-                        '',
-                        'TLS 1.4/ SSL- 1.0',
-                        '',
-                        '23.45.67',
-                        ''                   
-                    ]
-                    devices_info.append(device_info)
-            return devices_info                                                                   
-         except Exception as e:
-            return e
-    
-@ns.route('/api/v1/name/getdevicedetailsconfig/all')
-class GatewayDeviceDetailsConfigAll(Resource):
-     '''List of device details for configuration connected to gateway'''
-     @ns.doc('DevicesConfigdetail')
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self):
-         '''Get the list of devices detail connected for configuration'''
-         unique_device_names = set()
-         devices_info = []
-         try:
-            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
-            response = requests.get(apiurl)
-            deviceslist = response.json()['devices']
-            for device in deviceslist:
-                device_name = device['name']
-                if device_name not in unique_device_names:
-                    unique_device_names.add(device_name)
-                    status = ''
-                    createdtime = device['created']
-                    #print(createdtime)
-                    time_in_sec = createdtime / pow(10,9)
-                    dt = datetime.fromtimestamp(time_in_sec)
-                    form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    modifiedtime = device['modified']
-                    #print(modifiedtime)
-                    time_in_sec_m = modifiedtime / pow(10,9)
-                    dt_m = datetime.fromtimestamp(time_in_sec_m)
-                    form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
-                    if device['operatingState'] == "UP":
-                        status = 'online'
-                    else:
-                        status = 'offline'
-                    device_info = {
-                        'IotDeviceID': device['id'],
-                        'IOTDeviceName' : device['name'],
-                        'IPAddress' :device.get('protocols',{}).get('modbus-tcp',{}).get('Address',''),
-                        'PortNumber' :device.get('protocols',{}).get('modbus-tcp',{}).get('Port',''),
-                        'location':'Hyderabad',
-                        'AssociatedServiceProtocol':device['serviceName'],
-                        'AssociatedGatewayProfile':device['profileName'],
-                        'description':device['description'],
-                        'Status':status,
-                        'ProvisionedStatus':'',
-                        'ProvisionedMethod':'',
-                        'ProvisionedDateTime':form_dt,
-                        'ActiveInactive':'',
-                        'LastCommunicatedTime':form_dt_m,
-                        'LastCommunicatedTime':''                    
-                    }
-                    devices_info.append(device_info)
-            return devices_info                                                                 
-         except Exception as e:
-            return e
 
-@ns.route('/api/v1/telemetrydata/all')
+@ns.route('/api/v1/telemetrydata/<gatewayname>/all')
 class GatewayTelemetryDataAll(Resource):
      '''Telemetry data for all devices'''
      @ns.doc('TelemetryDataAll')
      @cross_origin()
+     @api.param('gatewayname','Name of gateway',type='string',required=True)
      @api.response(200,'Success..')
      @api.response(400,'Invalid input')
      @api.response(404,'Page Not Found')
      @api.response(500,'Internal Server Error')
-     def get(self):
+     def get(self,gatewayname):
          '''Get the telemetry data from all devices'''
-         unique_device_names = set({})
-         devices_info = []
          try:
-             apiurlmain = "http://localhost:59881/api/v2/device/all?limit=-1"
-             responsemain = requests.get(apiurlmain)
-             #print(responsemain.json())
-             devicelistmain = responsemain.json()['devices']
-             #print(devicelistmain)
-             for device in devicelistmain:
-                 device_name = device['name']
-                 #print(device)
-                 if device_name not in unique_device_names:
-                     unique_device_names.add(device_name)
-                     #print(unique_device_names)
-                     devproname = device['profileName']  
-                     apiurl2 = "http://localhost:59881/api/v2/deviceprofile/name/"+str(devproname)
-                     resdevproname = requests.get(apiurl2)
-                     #print(resdevproname)
-                     devresname = resdevproname.json()['profile']['deviceResources']
-                     devrescnt = len(devresname)  
-                     #print(devrescnt)              
-                     apiurl = "http://localhost:59880/api/v2/reading/device/name/"+str(device_name)
-                     response = requests.get(apiurl)
-                     readingslist = response.json()['readings']
-                     #print(readingslist)
-                     i = 0
-                     lst = []
-                     while i < devrescnt and readingslist != []:
-                         resource_name = readingslist[i]['resourceName']
-                         res = readingslist[i]['value'] 
-                         num = res
-                         if 'units' in readingslist[i]:
-                             units = readingslist[i]['units']
-                         else:
-                             units = ""
-                         #print(units)
-                         print(type(res))
-                         if '.' in res:
-                            num = '{0:.2f}'.format(float(res))
-                         r = [
-                             device_name,
-                             resource_name,
-                             num,
-                             units
-                         ]
-                         i = i + 1
-                         devices_info.append(r)
-                     #print(devices_info)
-             return json.dumps(devices_info)                                                                 
+             apiurl1 = "http://localhost:59881/api/v2/device/name/"+str(gatewayname)
+             res = requests.get(apiurl1)
+             g = res.json()['device']
+             ip = '127.0.0.1'
+             if 'protocols' in g:
+                for k,v in g['protocols'].items():
+                     if 'Address' in v:
+                         ip = v['Address']
+             apiurl2 = "http://"+ip+":5000/gatewaydata/api/v1/telemetrydata/all"
+             res2 = requests.get(apiurl2)
+             return res2.json()                                                               
          except Exception as e:
              return e
 
-@ns.route('/api/v1/telemetrydata/<string:devicename>')
-class GatewayTelemetryDataDevice(Resource):
-     '''Telemetry data for a particular device '''
-     @ns.doc('TelemetryDataDevice',params = {'devicename' : 'Device name to fetch telemetry data'})
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self,devicename):
-         '''Get the telemetry data for the device specified'''
-         try:
-            apiurl1 = "http://localhost:59881/api/v2/device/name/"+str(devicename)
-            resdevname = requests.get(apiurl1)
-            devproname = resdevname.json()['device']['profileName']  
-            apiurl2 = "http://localhost:59881/api/v2/deviceprofile/name/"+str(devproname)
-            resdevproname = requests.get(apiurl2)
-            devresname = resdevproname.json()['profile']['deviceResources']
-            devrescnt = len(devresname)
-            
-            apiurl = "http://localhost:59880/api/v2/reading/device/name/"+str(devicename)
-            response = requests.get(apiurl)
-            readingslist = response.json()['readings']
-            #print(type(readingslist))
-            #print(readingslist[0])
-            i = 0
-            lst = []
-            while i < devrescnt:
-                resource_name = readingslist[i]['resourceName']
-                res = readingslist[i]['value'] 
-                num = res
-                #res2 = float(res)
-                if 'units' in readingslist[i]:
-                    units = readingslist[i]['units']
-                else:
-                    units = ""
-                print(units)
-                if '.' in res:
-                    num = '{0:.2f}'.format(res)
-                r = {
-                resource_name : [num, units] 
-                }
-                i = i + 1
-                lst.append(r)
-            return json.dumps(lst)                                                                 
-         except Exception as e:
-             return e
+
 
 # InfluxDB configuration
 INFLUXDB_HOST = 'localhost'
@@ -692,64 +344,9 @@ client = InfluxDBClient(host=INFLUXDB_HOST,port=INFLUXDB_PORT,username=INFLUXDB_
 password=INFLUXDB_PASSWORD,
 database=INFLUXDB_DATABASE)
 
-@ns.route('/api/v1/data/linegraph/<string:devicename>')
-class GatewayLinegraphdataDevice(Resource):
-     '''Data for Linegraph for a particular device '''
-     @ns.doc('LinegraphDevice',params = {'devicename' : 'Device name to fetch data for Linegraph'})
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self,devicename):
-         '''Get the data for the device specified to plot line graph'''
-         try:
-            query = 'SELECT data,timestamp FROM '+devicename+';'
-            result = client.query(query)
-            lst = []
-            for point in result.get_points():
-                res = point['data']
-                ts = point['timestamp']
-                res2 = float(res)
-                #num = '{0:.2f}'.format(res2)
-                lgdata = {'value' : res2, 'timestamp' : ts}
-                lst.append(lgdata)
-                #print(num)
-            #r = { devicename : lst }
-            #print(type(r))
-            od = OrderedDict()
-            for d in sorted(lst, key = lambda x : x['timestamp']):
-                od[d['timestamp']] = d['value']
-            return jsonify(od)                                                                 
-         except Exception as e:
-             return e
 
-@ns.route('/api/v1/data/minmax/<string:devicename>')
-class GatewayMinMaxdataDevice(Resource):
-     '''Maximum and minimum data values for a particular device '''
-     @ns.doc('MinMaxDevice',params = {'devicename' : 'Device name to fetch minimum and maximum data values'})
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self,devicename):
-         '''Get the minimum and maximum data values for the device specified to render a slider'''
-         try:
-            apiurl = "http://localhost:59881/api/v2/deviceprofile/name/"+str(devicename)
-            response = requests.get(apiurl)
-            pro = response.json()['profile']
-            lst = []
-            maximum = pro['deviceResources'][0]['properties']['maximum']
-            minimum = pro['deviceResources'][0]['properties']['minimum']
-            lst.append(minimum)
-            lst.append(maximum)
-            r = {
-            devicename : lst
-            }
-            return json.dumps(r)                                                                 
-         except Exception as e:
-             return e
+
+
 
 @ns.route('/api/v1/count/gatewaywrtmanu')
 class GatewayWrtManufacturer(Resource):
@@ -783,32 +380,6 @@ class GatewayWrtManufacturer(Resource):
          except Exception as e:
              return e
 
-@ns.route('/api/v1/count/gatewaywrtservice')
-class GatewayWrtService(Resource):
-     '''Gateway Details per device service '''
-     @ns.doc('GatewayDetailsDeviceService')
-     @cross_origin()
-     @api.response(200,'Success..')
-     @api.response(400,'Invalid input')
-     @api.response(404,'Page Not Found')
-     @api.response(500,'Internal Server Error')
-     def get(self):
-         '''Get the gateway details with respect to device service'''
-         try:
-            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
-            response = requests.get(apiurl)
-            devicelist = response.json()['devices']
-            mp = {}
-            cnt = 0
-            for d in devicelist:
-                if d['serviceName'] in mp:
-                    mp[d['serviceName']] += 1
-                else:
-                    mp[d['serviceName']] = 1
-            #print(mp)         
-            return json.dumps(mp)                                                                
-         except Exception as e:
-             return e
 
 @ns.route('/api/v1/count/gatewayconfigdata')
 class GatewayConfigData(Resource):
@@ -1709,7 +1280,561 @@ class IoTDeviceInActiveCount(Resource):
              return str(iotdevicecnt)
          except Exception as e:
              return e
+             
+
+@iotd.route('/api/v1/name/getiotdevicedetails/all')
+class IoTDeviceDetailsDataCollection(Resource):
+    '''List of IoT Devices details for data collection'''
+    @ns.doc('IoTdevicesdetailDataCollection')
+    @cross_origin()
+    @api.response(200,'Success..')
+    @api.response(400,'Invalid input')
+    @api.response(404,'Page Not Found')
+    @api.response(500,'Internal Server Error')
+    def get(self):
+        '''Get the list of IoT Devices detail for configuration'''
+        unique_device_names = set()
+        devices_info = []
+        unique_gateway_names = set()
+        try:  
+            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+            response = requests.get(apiurl)
+            print(response.json())
+            p = response.json()['devices']
+             #print(p)
+             #print("next IP")
+            for gp in p:
+                gateway_name = gp['name']
+                if gateway_name not in unique_gateway_names:  
+                    unique_gateway_names.add(gateway_name)   
+                    ip = '127.0.0.1'
+                    port = '5000'
+                    if 'protocols' in gp:
+                        for k,v in gp['protocols'].items():
+                            print(v)
+                            if 'Address' in v:
+                                ip = v['Address'] 
+                            if 'Port' in v:
+                                port = v['Port']   
+                    print("printing IP")
+                    print(ip)                                                     
+                    apiurl2='http://'+ip+':59881/api/v2/device/all?limit=-1'
+                    #print(apiurl2)
+                    response2 = requests.get(apiurl2)
+                    devicelist = response2.json()['devices']
+                    for g in devicelist:
+                        device_name = g['name']
+                        #print(device_name)
+                        if device_name not in unique_device_names:
+                            unique_device_names.add(device_name)
+                            #print(unique_device_names)
+                            gatewayip = ip
+                            gatewayport = port
+                            pdata={}
+                            if 'protocols' in g:
+                                for k,v in g['protocols'].items():
+                                    pdata=v
+                                if 'Address' in pdata:
+                                    gatewayip = pdata['Address']
+                                if 'Port' in pdata:
+                                    gatewayport = pdata['Port']
+                            print(gatewayip)
+                            print("\n")
+                            status = ''
+                            createdtime = g['created']
+                            time_in_sec = createdtime / pow(10,9)
+                            dt = datetime.fromtimestamp(time_in_sec)
+                            form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
+                            #print(form_dt)
+                            modifiedtime = g['modified']
+                            time_in_sec_m = modifiedtime / pow(10,9)
+                            dt_m = datetime.fromtimestamp(time_in_sec_m)
+                            form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
+                            apiurl3 = "http://"+gatewayip+":59881/api/v2/deviceprofile/name/"+g['profileName']
+                            print(apiurl3)
+                            res_devpro = requests.get(apiurl3)
+                            manufacturername = res_devpro.json()['profile']['manufacturer']
+                            print(manufacturername)
+                            if g['operatingState'] == "UP":
+                                status = 'online'
+                            else:
+                                status = 'offline'
+                            device_info = [
+                                    g['id'],
+                                    g['name'],
+                                    g['description'],
+                                    gatewayip,
+                                    gatewayport,
+                                    'Hyderabad',
+                                    gateway_name,
+                                    gp['id'],
+                                    g['profileName'],
+                                    g['serviceName'],
+                                    status,
+                                    manufacturername,
+                                    'provisioned',
+                                    form_dt,
+                                    'Active',
+                                    form_dt_m,
+                                ]
+                            devices_info.append(device_info)
+                            print(device_info)
+                            print("\n")
+            return devices_info
+        except Exception as e:
+            return str(e)
+
+@ns.route('/api/v1/name/getgatewayconfigdetails/all')
+class GatewayDetailsConfig(Resource):
+    '''List of gateways details for data collection'''
+    @ns.doc('GatewaysdetailDataCollection')
+    @cross_origin()
+    @api.response(200,'Success..')
+    @api.response(400,'Invalid input')
+    @api.response(404,'Page Not Found')
+    @api.response(500,'Internal Server Error')
+    def get(self):
+        '''Get the list of gateways detail for configuration'''
+        unique_device_names = set()
+        devices_info = []
+        try:           
+            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+            response = requests.get(apiurl)
+            gateways = response.json()['devices']
+            for g in gateways:
+                device_name = g['name']
+                if device_name not in unique_device_names:
+                    unique_device_names.add(device_name)
+                    gatewayip = '127.0.0.1'
+                    gatewayport = '5000'
+                    pdata={}
+                    if 'protocols' in g:
+                        for k,v in g['protocols'].items():
+                            pdata=v
+                        if 'Address' in pdata:
+                            gatewayip = pdata['Address']
+                        if 'Port' in pdata:
+                            gatewayport = pdata['Port']
+                    status = ''
+                    createdtime = g['created']
+                    time_in_sec = createdtime / pow(10,9)
+                    dt = datetime.fromtimestamp(time_in_sec)
+                    form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    modifiedtime = g['modified']
+                    time_in_sec_m = modifiedtime / pow(10,9)
+                    dt_m = datetime.fromtimestamp(time_in_sec_m)
+                    form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
+                    apiurl2 = "http://localhost:59881/api/v2/deviceprofile/name/"+g['profileName']
+                    res_devpro = requests.get(apiurl2)
+                    manufacturername = res_devpro.json()['profile']['manufacturer']
+                    if g['operatingState'] == "UP":
+                        status = 'online'
+                    else:
+                        status = 'offline'
+                    if 'location' not in g:
+                        g['location']='Mysore'
+                    device_info = [
+                        g['id'],
+                        g['name'],
+                        gatewayip,
+                        gatewayport,
+                        g['location'],
+                        g['serviceName'],
+                        g['profileName'],
+                        g['description'],
+                        status,
+                        'provisioned',
+                        'Default',
+                        form_dt,
+                        'Active',
+                        form_dt_m,
+                        'NA',
+                        '',
+                        '',
+                        'Ubuntu 22.04',
+                        '',
+                        'NA',
+                        '',
+                        'NA',
+                        ''
+                    ]
+                    devices_info.append(device_info)
+                #print(devices_info)
+            return devices_info
+        except Exception as e:
+            return str(e)
+
+
+@ns.route('/api/v1/name/getgatewayconfigdetailsoverview/all')
+class GatewayDetailsConfigOverview(Resource):
+    '''List of gateways details for data collection'''
+    @ns.doc('GatewaysdetailDataCollection')
+    @cross_origin()
+    @api.response(200,'Success..')
+    @api.response(400,'Invalid input')
+    @api.response(404,'Page Not Found')
+    @api.response(500,'Internal Server Error')
+    def get(self):
+        '''Get the list of gateways detail for configuration'''
+        unique_device_names = set()
+        devices_info = []
+        try:           
+            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+            response = requests.get(apiurl)
+            gateways = response.json()['devices']
+            for g in gateways:
+                device_name = g['name']
+                if device_name not in unique_device_names:
+                    unique_device_names.add(device_name)
+                    gatewayip = '127.0.0.1' 
+                    if 'protocols' in g:
+                        for k,v in g['protocols'].items():
+                            if 'Address' in v:
+                                gatewayip = v['Address']
+                    device_info = [
+                        g['id'],
+                        g['name'],
+                        gatewayip,
+                        '',
+                        '',                       
+                        ''
+                    ]
+                    devices_info.append(device_info)
+                #print(devices_info)
+            return devices_info
+        except Exception as e:
+            return str(e)
+
+@ns.route('/api/v1/name/getgatewaydetails/all')
+class GatewayDetailsAll(Resource):
+     '''List of gateway and their details'''
+     @ns.doc('Gatewaydetails')
+     @cross_origin()
+     @api.response(200,'Success..')
+     @api.response(400,'Invalid input')
+     @api.response(404,'Page Not Found')
+     @api.response(500,'Internal Server Error')
+     def get(self):
+         '''Get the list of gateways and their details'''
+         unique_device_names = set({})
+         devices_info = []
+         try:
+             apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+             response = requests.get(apiurl)
+             deviceslist = response.json()['devices']
+             print(deviceslist)
+             for device in deviceslist:
+                 device_name = device['name']
+                 if device_name not in unique_device_names:
+                     unique_device_names.add(device_name)
+                     status = ''
+                     createdtime = device['created']
+                     #print(createdtime)
+                     time_in_sec = createdtime / pow(10,9)
+                     dt = datetime.fromtimestamp(time_in_sec)
+                     form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
+                     modifiedtime = device['modified']
+                     #print(modifiedtime)
+                     time_in_sec_m = modifiedtime / pow(10,9)
+                     dt_m = datetime.fromtimestamp(time_in_sec_m)
+                     form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
+                     
+                     protocolname = ''
+                     protocolinfo={}
+                     
+                     print(device['protocols'].items())
+                     for k,v in device['protocols'].items():
+                         protocolname = k
+                         protocolinfo = v  
+                     apiurldevprofile = 'http://localhost:59881/api/v2/deviceprofile/name/'+device['profileName']
+                     resp_devprofile=requests.get(apiurldevprofile)
+                     device_profile = resp_devprofile.json()['profile']
+                     
+                     print(device_profile)
+                         
+                     if 'location' not in device:
+                         device['location'] = 'Mysore'
+                     if device['operatingState'] == "UP":
+                         status = 'online'
+                     else:
+                         status = 'offline'
+                     device_info = [
+                         device['id'],
+                         device_name,
+                         v['Address'],
+                         v['Port'], 
+                         device['location'],
+                         '',
+                         device_profile['model'],
+                         device_profile['manufacturer'],
+                         device['profileName'],
+                         device['serviceName'],
+                         device['description'],
+                         status,
+                         'Provisioned',
+                         'Default',
+                         form_dt,
+                         'Active',
+                         form_dt_m,
+                         '',
+                         'Ubuntu 22.04',
+                         'NA',
+                         'Active',
+                         '23.45.67',
+                         'Active'                    
+                     ]
+                     devices_info.append(device_info)
+             return devices_info                                                                    
+         except Exception as e:
+            return e
+
+@iotd.route('/api/v1/name/getdeviceconfigdetails/all')
+class DeviceDetailsConfig(Resource):
+    '''List of IoT Device details for config'''
+    @ns.doc('IoTDeviceDetailConfig')
+    @cross_origin()
+    @api.response(200,'Success..')
+    @api.response(400,'Invalid input')
+    @api.response(404,'Page Not Found')
+    @api.response(500,'Internal Server Error')
+    def get(self):
+        '''Get the list of IoT Device detail for configuration'''
+        unique_device_names = set()
+        devices_info = []
+        unique_gateway_names = set()
+        try:  
+            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+            response = requests.get(apiurl)
+            print(response.json())
+            p = response.json()['devices']
+             #print(p)
+             #print("next IP")
+            for gp in p:
+                gateway_name = gp['name']
+                if gateway_name not in unique_gateway_names:  
+                    unique_gateway_names.add(gateway_name)   
+                    ip = '127.0.0.1'
+                    port = '5000'
+                    if 'protocols' in gp:
+                        for k,v in gp['protocols'].items():
+                            print(v)
+                            if 'Address' in v:
+                                ip = v['Address'] 
+                            if 'Port' in v:
+                                port = v['Port']   
+                    print("printing IP")
+                    print(ip)                                                     
+                    apiurl2='http://'+ip+':59881/api/v2/device/all?limit=-1'
+                    #print(apiurl2)
+                    response2 = requests.get(apiurl2)
+                    devicelist = response2.json()['devices']
+                    for g in devicelist:
+                        device_name = g['name']
+                        #print(device_name)
+                        if device_name not in unique_device_names:
+                            unique_device_names.add(device_name)
+                            #print(unique_device_names)
+                            gatewayip = ip
+                            gatewayport = port
+                            pdata={}
+                            if 'protocols' in g:
+                                for k,v in g['protocols'].items():
+                                    pdata=v
+                                if 'Address' in pdata:
+                                    gatewayip = pdata['Address']
+                                if 'Port' in pdata:
+                                    gatewayport = pdata['Port']
+                            print(gatewayip)
+                            print("\n")
+                            status = ''
+                            createdtime = g['created']
+                            time_in_sec = createdtime / pow(10,9)
+                            dt = datetime.fromtimestamp(time_in_sec)
+                            form_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
+                            #print(form_dt)
+                            modifiedtime = g['modified']
+                            time_in_sec_m = modifiedtime / pow(10,9)
+                            dt_m = datetime.fromtimestamp(time_in_sec_m)
+                            form_dt_m = dt_m.strftime('%Y-%m-%d %H:%M:%S')
+                            apiurl3 = "http://"+gatewayip+":59881/api/v2/deviceprofile/name/"+g['profileName']
+                            print(apiurl3)
+                            res_devpro = requests.get(apiurl3)
+                            manufacturername = res_devpro.json()['profile']['manufacturer']
+                            print(manufacturername)
+                            if g['operatingState'] == "UP":
+                                status = 'online'
+                            else:
+                                status = 'offline'
+                            device_info = {
+                                    'IotDeviceID':g['id'],
+                                    'IOTDeviceName':g['name'],
+                                    'IPAddress':gatewayip,
+                                    'PortNumber':gatewayport,
+                                    'location':'Hyderabad',
+                                    'AssociatedServiceProtocol':g['serviceName'],
+                                    'AssociatedGatewayProfile':g['profileName'],
+                                    'description':g['description'],
+                                    'Status':status,
+                                    'ProvisionedStatus':'provisioned',
+                                    'ProvisionedMethod':'Default',
+                                    'ProvisionedDateTime':form_dt,
+                                    'ActiveInactive':'Active',
+                                    'LastCommunicatedTime':form_dt_m
+                                }
+                            devices_info.append(device_info)
+                            print(device_info)
+                            print("\n")
+            return devices_info
+        except Exception as e:
+            return str(e)
+
+@iotd.route('/api/v1/<gatewayname>/telemetrydata/<devicename>')
+class GatewayTelemetryDataDevice(Resource):
+     '''Telemetry data for a particular device '''
+     @ns.doc('TelemetryDataDevice')
+     @api.param('gatewayname','Name of gateway to fetch data', type='string',required=True)
+     @api.param('iotdevicename','Name of iotdevice to fetch data', type='string',required=True)
+     @cross_origin()
+     @api.response(200,'Success..')
+     @api.response(400,'Invalid input')
+     @api.response(404,'Page Not Found')
+     @api.response(500,'Internal Server Error')
+     def get(self,gatewayname,devicename):
+         '''Get the telemetry data for the device specified'''
+         try:
+            apiurl1 = "http://localhost:59881/api/v2/device/name/"+str(gatewayname)
+            res = requests.get(apiurl1)
+            g = res.json()['device']
+            ip = '127.0.0.1'
+            if 'protocols' in g:
+               for k,v in g['protocols'].items():
+                    if 'Address' in v:
+                        ip = v['Address']
+            apiurl2 = "http://"+ip+":5000/gatewaydata/api/v1/telemetrydata/"+str(devicename)
+            res2 = requests.get(apiurl2)
+            return res2.json()                                                                   
+         except Exception as e:
+             return e
+
+@iotd.route('/api/v1/data/<gatewayname>/minmax/<devicename>')
+class GatewayMinMaxdataDevice(Resource):
+     '''Maximum and minimum data values for a particular device '''
+     @ns.doc('MinMaxDevice')
+     @cross_origin()
+     @api.param('gatewayname','Name of gateway',type='string',required=True)
+     @api.param('devicename','Name of device',type='string',required=True)
+     @api.response(200,'Success..')
+     @api.response(400,'Invalid input')
+     @api.response(404,'Page Not Found')
+     @api.response(500,'Internal Server Error')
+     def get(self,gatewayname,devicename):
+         '''Get the minimum and maximum data values for the device specified to render a slider'''
+         try:
+            apiurl1 = "http://localhost:59881/api/v2/device/name/"+str(gatewayname)
+            res = requests.get(apiurl1)
+            g = res.json()['device']
+            ip = '127.0.0.1'
+            if 'protocols' in g:
+               for k,v in g['protocols'].items():
+                    if 'Address' in v:
+                        ip = v['Address']
+            apiurl2 = "http://"+ip+":5000/gatewaydata/api/v1/data/minmax/"+str(devicename)
+            res2 = requests.get(apiurl2)
+            return res2.json()                                                                   
+         except Exception as e:
+             return e
+
+@ns.route('/api/v1/count/gatewaywrtservice')
+class GatewayWrtService(Resource):
+     '''Gateway Details per device service '''
+     @ns.doc('GatewayDetailsDeviceService')
+     @cross_origin()
+     @api.response(200,'Success..')
+     @api.response(400,'Invalid input')
+     @api.response(404,'Page Not Found')
+     @api.response(500,'Internal Server Error')
+     def get(self):
+         '''Get the gateway details with respect to device service'''
+         try:
+            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+            response = requests.get(apiurl)
+            devicelist = response.json()['devices']
+            mp = {}
+            cnt = 0
+            for d in devicelist:
+                if d['serviceName'] in mp:
+                    mp[d['serviceName']] += 1
+                else:
+                    mp[d['serviceName']] = 1
+            #print(mp)         
+            return json.dumps(mp)                                                                
+         except Exception as e:
+             return e
+             
+@iotd.route('/api/v1/data/<gatewayname>/linegraph/<devicename>')
+class GatewayLinegraphdataDevice(Resource):
+     '''Data for Linegraph for a particular device '''
+     @ns.doc('LinegraphDevice')
+     @cross_origin()
+     @api.param('devicename','Name of device',type='string',required=True)
+     @api.param('gatewayname','Name of gateway',type='string',required=True)  
+     @api.response(200,'Success..')
+     @api.response(400,'Invalid input')
+     @api.response(404,'Page Not Found')
+     @api.response(500,'Internal Server Error')
+     def get(self,gatewayname,devicename):
+         '''Get the data for the device specified to plot line graph'''
+         try:
+            apiurl1 = "http://localhost:59881/api/v2/device/name/"+str(gatewayname)
+            res = requests.get(apiurl1)
+            g = res.json()['device']
+            ip = '127.0.0.1'
+            if 'protocols' in g:
+               for k,v in g['protocols'].items():
+                    if 'Address' in v:
+                        ip = v['Address']
+            apiurl2 = "http://"+ip+":5000/gatewaydata/api/v1/data/linegraph/"+str(devicename)
+            res2 = requests.get(apiurl2)
+            return res2.json()                                                                   
+         except Exception as e:
+             return e
+
+@iotd.route('/api/v1/count/gatewaywrtservice')
+class GatewayWrtService(Resource):
+     '''Gateway Details per device service '''
+     @ns.doc('GatewayDetailsDeviceService')
+     @cross_origin()
+     @api.response(200,'Success..')
+     @api.response(400,'Invalid input')
+     @api.response(404,'Page Not Found')
+     @api.response(500,'Internal Server Error')
+     def get(self):
+         '''Get the gateway details with respect to device service'''
+         try:
+            apiurl = "http://localhost:59881/api/v2/device/all?limit=-1"
+            response = requests.get(apiurl)
+            devicelist = response.json()['devices']
+            mp = {}
+            cnt = 0
+            for d in devicelist:
+                ip = '127.0.0.1'
+                if 'protocols' in d:
+                    for k,v in d['protocols'].items():
+                        if 'Address' in v:
+                            ip = v['Address']
+                apiurl2 = "http://"+ip+":59881/api/v2/device/all?limit=-1"   
+                resp2 = requests.get(apiurl2)
+                iotdevlist = resp2.json()['devices']
+                for iotdev in iotdevlist:
+                    if iotdev['serviceName'] in mp:
+                       mp[iotdev['serviceName']] += 1
+                    else:
+                       mp[iotdev['serviceName']] = 1
+            #print(mp)         
+            return json.dumps(mp)                                                                
+         except Exception as e:
+             return e
+
 
 if __name__ == '__main__':
     app.run('0.0.0.0',5000,debug = True)
-

@@ -4,10 +4,20 @@ import {useState, useEffect} from "react";
 import axios from "axios";
 
 function Subnets(){
-	
+	const [devices, setDevices] = useState([]);
+  useEffect(() => {
+    const fetchData = async () => {
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/name/getdevicenames/all`)
+		.then(response =>{
+		setDevices(response.data); 
+		})
+  }
+  fetchData();
+  },[]);
+  
 	let [val, setVal] = useState([]);
 	useEffect(()=>{
-	axios.get('http://localhost:5000/gatewaydata/api/v1/name/getdevicenames')
+	axios.get('http://172.30.122.183:5000/gatewaydata/api/v1/name/getdevicenames')
 	.then(response =>{
 	console.log(response);
 	const gatewaydata = response.data;
@@ -18,15 +28,18 @@ function Subnets(){
 		gatewaynames.push(gateway.name);
 		
 		const devicecnt = [];
-		devicecnt.push(gateway.data);
+		gateway.devices.forEach( iotdev => {
+		devicecnt.push(iotdev.data);
 		devicedata.push({ 
-		name : gateway.name,
-		data : devicecnt
+		name : iotdev.name,
+		data : [iotdev.data]
+		
+		});
 		
 		});
 	});
 	setVal(devicedata);
-	
+	console.log(devicedata);
 	})
 	.catch(console.error);
 	},[]);
@@ -94,7 +107,7 @@ function Subnets(){
           //fontSize: '11px',
         },
         xaxis: {
-          categories: ['Gateway-01'],
+          categories: devices,
           labels: {
             show: true,
             hideOverlappingLabels: true,

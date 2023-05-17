@@ -35,10 +35,20 @@ function ConfigIOTTable() {
 	
 	let [val, setVal] = useState([]);
 	useEffect(()=>{
-	axios.get('http://localhost:5000/gatewaydata/api/v1/name/getdevicedetailsconfig/all')
+	axios.get('http://172.30.122.183:5000/gatewaydata/api/v1/name/getgatewayconfigdetailsoverview/all')
 	.then(response =>{
 	console.log(response);
 	setVal(response.data);
+	})
+	.catch(console.error);
+	},[]);
+	
+	let [valiotd, setValiotd] = useState([]);
+	useEffect(()=>{
+	axios.get('http://172.30.122.183:5000/iotdevicedata/api/v1/name/getdeviceconfigdetails/all')
+	.then(response2 =>{
+	console.log(response2);
+	setValiotd(response2.data);
 	})
 	.catch(console.error);
 	},[]);
@@ -78,6 +88,9 @@ function ConfigIOTTable() {
         },
         {
             name: "Gateway Name",
+        },
+         {
+            name: "Gateway IP"
         },
         {
             name: "Unsecure Provisioning",
@@ -136,21 +149,14 @@ function ConfigIOTTable() {
         },
     ];
 
-    const data = [
-        ['f795ee7b-3931-424d-8596-df74d9e41f52', 'Lenovo Gateway', 'unsecure Provisioning', 'secure Provisioning', 'Renew'],
-        ['2557267636', 'windows', 'unsecure Provisioning', 'secure Provisioning', 'Renew'],
-        ['2557267636', 'Lenovo Gateway', 'unsecure Provisioning', 'secure Provisioning', 'Renew'],
-        ['2557267636', 'windows', 'unsecure Provisioning', 'secure Provisioning', 'Renew'],
-        ['2557267636', 'Lenovo Gateway', 'unsecure Provisioning', 'secure Provisioning', 'Renew'],
-        ['2557267636', 'windows', 'unsecure Provisioning', 'secure Provisioning', 'Renew'],
-    ];
+    const data = val;
 
    function createData(IotDeviceID, IOTDeviceName, IPAddress, PortNumber, location, AssociatedServiceProtocol, AssociatedGatewayProfile, description, Status, ProvisionedStatus, ProvisionedMethod, ProvisionedDateTime, ActiveInactive, LastCommunicatedTime, UnprovisionongIoTDevice) {
         return { IotDeviceID, IOTDeviceName, IPAddress, PortNumber, location, AssociatedServiceProtocol, AssociatedGatewayProfile, description, Status, ProvisionedStatus, ProvisionedMethod, ProvisionedDateTime, ActiveInactive, LastCommunicatedTime, UnprovisionongIoTDevice };
     }
 
     //const rows = val.map(function(fn){ return fn();});
-    const rows = val;
+    const rows = valiotd;
     /*[
         createData('276397', 'temp', '192.168.45.34', '1502', 'Hyderabad', 'Pressure Profile', 'modbus', 'demo', 'Online', 'Yes', 'Symmetric', '06 / 04 / 2023 12: 34: 23: 45', 'Active', '06 / 04 / 2023 12: 36: 34: 45', 'unprovisioning IoT device'),
         createData('637827832', 'temp', '192.168.45.34', '1502', 'Mysuru', 'Pressure Profile', 'modbus', 'demo', 'Online', 'Yes', 'x.509', '06/04/2023 12:34:23:45', 'Active', '06/04/2023 12:36:34:45', 'unprovisioning IoT device'),

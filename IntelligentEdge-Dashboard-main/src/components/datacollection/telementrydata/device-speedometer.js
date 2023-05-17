@@ -33,12 +33,47 @@ function getStyles(name, personName, theme) {
 
 function DeviceSpeedometer() {
 let [telemetryData, setTelemetryData] = useState([]);
-let [gatewayiotdevices,setGatewayiotdevices] = useState([]);     
+let [test,setTest] = useState([]);
+let [gatewayiotdevices,setGatewayiotdevices] = useState([]);   
+
+const theme = useTheme();
+    const [personName, setPersonName] = React.useState([]);
+    const [selected,setSelected] = useState(0);
+   
     
+    const fetchdatatelemetry = (devicename) => {
+    
+       axios.get(`http://172.30.122.183:5000/iotdevicedata/api/v1/${selectdevice}/telemetrydata/${devicename}`)
+		.then(response =>{
+		console.log(response.data);
+		setTest(cur => [...cur,response.data]);
+		setTelemetryData(cur => [...cur,response.data]);
+		
+	}) 
+    }
+    const handleChange = (event) => {
+        const {
+            target: { value },
+        } = event;
+        setPersonName(
+            typeof value === 'string' ? value.split(',') : value,
+        );
+        console.log(value);
+        setTelemetryData([]);
+        value.forEach( (item,index) => {
+        fetchdatatelemetry(item);
+        })
+        setSelected(value);
+        console.log(telemetryData);
+        console.log(test);
+    };  
+    
+    
+  
   const [devices, setDevices] = useState([]);
   useEffect(() => {
     const fetchData = async () => {
-    axios.get(`http://localhost:5000/gatewaydata/api/v1/name/getdevicenames/all`)
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/name/getdevicenames/all`)
 		.then(response =>{
 		setDevices(response.data); 
 		})
@@ -56,7 +91,7 @@ let [gatewayiotdevices,setGatewayiotdevices] = useState([]);
     setdevice(event.target.value);
     const fetchData = async () => {
     setTelemetryData([]);
-    axios.get(`http://localhost:5000/gatewaydata/api/v1/getiotdevices/${event.target.value}`)
+    axios.get(`http://172.30.122.183:5000/gatewaydata/api/v1/getiotdevices/${event.target.value}`)
     .then((response) => {
     setGatewayiotdevices(response.data);
     });
@@ -84,32 +119,37 @@ let [gatewayiotdevices,setGatewayiotdevices] = useState([]);
                     </FormControl>
                 </div>
                 <div className="selectdropdown">
-                    <FormControl sx={{ m: 1, minWidth: 170 }} size="small">
-                        <InputLabel id="demo-select-small">Select IoT Devices</InputLabel>
-                        <Select labelId="demo-select-small" id="demo-select-small" value={selectiotdevice} label="Select IoT Devices" >
-                            {gatewayiotdevices.map(item =>(
-              	<MenuItem key={item} value={item}>
-              	{item}
-              	</MenuItem>
-              ))}
-              </Select>
-                    </FormControl>
-                </div>
+                        <FormControl sx={{ m: 1, width: 170 }} size="small">
+                            <InputLabel id="demo-multiple-name-label">Device/Sensor Name</InputLabel>
+                            <Select labelId="demo-multiple-name-label" id="demo-multiple-name" multiple value={personName} onChange={handleChange} input={<OutlinedInput label="Device/Sensor Name" />} renderValue={(selected) => selected.join(', ')} MenuProps={MenuProps}>
+                                {gatewayiotdevices.map((name) => (
+                                    <MenuItem key={name} value={name} style={getStyles(name, personName, theme)}>
+                                        <Checkbox checked={personName.indexOf(name) > -1} />
+                                        {name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </div>
             </div>
+            
+            
             <div className="speedmeter_wrapper">
-               { telemetryData.map((telemetryData) => (
-			<div key={telemetryData.device} >
-			 <h2 className="text-center">{telemetryData.resourcename}</h2>
+            { telemetryData.map((telemetry,index) => (	
+               <div key={personName} >
+			{ telemetry.map((t,innerindex) => (
+			 <div key={innerindex}>
+			 <h2 className="text-center">{Object.keys(t)}</h2>
 			 <div>
-			 <span>{telemetryData.devvalue}</span>
+			 <span>{Object.values(t)[0]}</span>
 			 <span style = {{margin: "0 10px" }}></span>
-			 <span>{telemetryData.units}</span>
+			 <span>{Object.values(t)[1]}</span>
 			 </div>
                		 <div className="dev_speed">
                		<ReactSpeedometer
                		minValue = {-50}
                         maxValue= {10000}
-                        value = {parseFloat(telemetryData.devvalue)}
+                        value = {parseFloat(Object.values(t)[0])}
                         segments={10}
                         segmentColors={["#FF7D7D", "#FAEA48","#14C38E"]}
                         currentValueText={55 + "F"}
@@ -126,8 +166,11 @@ let [gatewayiotdevices,setGatewayiotdevices] = useState([]);
 	                 />
 			    </div> 
 			</div>
-	               ))}	
+			))}
+			</div>
+	            	))}
             	</div>
+            	  
             </div>
 
             
