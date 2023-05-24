@@ -1,0 +1,607 @@
+# IOTech Edge Xpert version: 2.3.0
+version: '3.7'
+
+volumes:
+  edgex-init:
+  vault-config:
+  vault-file:
+  vault-logs:
+  postgres-config:
+  consul-acl-token:
+  kuiper-config:
+  # volumes for TLS certificates
+  mqtt-broker-config:
+  mqtt-client-cert:
+  nodered-cert:
+  influxdb-cert:
+  grafana-cert:
+  nginx-cert:
+  redis-server-cert:
+  # non-shared volumes
+  postgres-data:
+  redis-config:
+
+x-security-env-variables: &security-common-variables
+  EDGEX_SECURITY_SECRET_STORE: "true"
+  SECRETSTORE_HOST: edgex-vault
+  SECRETSTORE_PORT: '8200'
+  STAGEGATE_BOOTSTRAPPER_HOST: edgex-security-bootstrapper
+  STAGEGATE_BOOTSTRAPPER_STARTPORT: '54321'
+  STAGEGATE_DATABASE_HOST: edgex-redis
+  STAGEGATE_DATABASE_PORT: '6379'
+  STAGEGATE_DATABASE_READYPORT: '6379'
+  STAGEGATE_READY_TORUNPORT: '54329'
+  STAGEGATE_REGISTRY_HOST: edgex-core-consul
+  STAGEGATE_REGISTRY_PORT: '8500'
+  STAGEGATE_REGISTRY_READYPORT: '54324'
+  STAGEGATE_SECRETSTORESETUP_HOST: edgex-security-secretstore-setup
+  STAGEGATE_SECRETSTORESETUP_TOKENS_READYPORT: '54322'
+  STAGEGATE_WAITFOR_TIMEOUT: 300s
+  STAGEGATE_WAITFOR_RETRYINTERVAL: 3s
+  #SPIFFE_ENDPOINTSOCKET: /tmp/edgex/secrets/spiffe/public/api.sock
+  #SPIFFE_TRUSTBUNDLE_PATH: /tmp/edgex/secrets/spiffe/trust/bundle
+  #SPIFFE_TRUSTDOMAIN: edgexfoundry.org
+  # to use TLS-enabled mqtt-broker as the internal message bus, set the MESSAGEQUEUE_* variables to have the following values
+  # MESSAGEQUEUE_PROTOCOL: tcps
+  # MESSAGEQUEUE_PORT: 8883
+  # MESSAGEQUEUE_AUTHMODE: clientcert
+  # you can set values on the host instead of editing this file, for example: export EDGEXPERT_MESSAGEQUEUE_PROTOCOL=tcps
+  MESSAGEQUEUE_PROTOCOL: ${EDGEXPERT_MESSAGEQUEUE_PROTOCOL:-tcp}
+  MESSAGEQUEUE_PORT: ${EDGEXPERT_MESSAGEQUEUE_PORT:-1883}
+  MESSAGEQUEUE_AUTHMODE: ${EDGEXPERT_MESSAGEQUEUE_AUTHMODE:-none}
+  MESSAGEQUEUE_OPTIONAL_SKIPCERTVERIFY: ${EDGEXPERT_OPTIONAL_SKIPCERTVERIFY:-true}
+  # EDGEXPERT_NODERED_TLS indicates whether to enable TLS on the internal Node-Red server
+  EDGEXPERT_NODERED_TLS: ${EDGEXPERT_NODERED_TLS:-false}
+  # EDGEXPERT_INFLUXDB_TLS indicates whether to enable TLS on the internal InfluxDB server
+  EDGEXPERT_INFLUXDB_TLS: ${EDGEXPERT_INFLUXDB_TLS:-false}
+  # EDGEXPERT_GRAFANA_TLS indicates whether to enable TLS on the internal Grafana server
+  EDGEXPERT_GRAFANA_TLS: ${EDGEXPERT_GRAFANA_TLS:-false}
+  # EDGEXPERT_MESSAGEBUS_MQTT_TLS indicates whether to enable TLS on the internal MQTT broker
+  EDGEXPERT_MESSAGEBUS_MQTT_TLS: ${EDGEXPERT_MESSAGEBUS_MQTT_TLS:-false}
+
+services:
+  security-bootstrapper:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-security-bootstrapper:${EDGEXPERT_IMAGE_VERSION}
+    container_name: security-bootstrapper
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-security-bootstrapper
+    user: "root:root" # Must run as root
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *security-common-variables
+      EDGEX_USER: '2002'
+      EDGEX_GROUP: '2001'
+      EDGEXPERT_USE_CONSUL:
+      EDGEXPERT_USE_KONG:
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - edgex-init:/edgex-init:z
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  secretstore-setup:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-security-secretstore-setup:${EDGEXPERT_IMAGE_VERSION}
+    container_name: secretstore-setup
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-security-secretstore-setup
+    user: "root:root" # must run as root
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *security-common-variables
+      EDGEX_USER: '2002'
+      EDGEX_GROUP: '2001'
+      SECUREMESSAGEBUS_TYPE: redis
+      ADD_KNOWN_SECRETS:
+      ADD_SECRETSTORE_TOKENS:
+      # modify to override default ttl(1h) of vault token
+      TOKENFILEPROVIDER_DEFAULTTOKENTTL: 720h
+      # use service hostname as MQTT client name
+      MESSAGEBUS_MQTT_CLIENTS: "core-data, core-metadata, core-command, core-keeper, app-service, device-rest, device-virtual, device-opc-ua, device-bacnet-ip, device-bacnet-mstp, device-modbus, device-s7, device-gps, device-mqtt, device-websocket, edgex-kuiper, device-canbus, device-canopen, device-ethercat, device-ethercat-ip, device-file, device-zigbee, device-mems, device-ble, device-onvif-camera, device-openvino, device-profinet, device-usb-camera, device-ethernet-ip, support-sparkplug, support-notifications, support-rulesengine, support-scheduler, sys-mgmt-agent, edgexpert-manager"
+      # use service hostname as Redis client name
+      REDIS_CLIENTS: "security-proxy-auth, core-data, core-metadata, core-command, core-keeper, app-service, support-notifications, support-rulesengine, support-scheduler, edgexpert-manager"
+    tmpfs:
+      - /run
+      - /vault
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/:/tmp/edgex/secrets:z
+      - vault-config:/vault/config:z
+      - kuiper-config:/tmp/kuiper:z
+      - mqtt-broker-config:/tmp/edgex/secrets/mqtt/server:z
+      - mqtt-client-cert:/tmp/edgex/secrets/mqtt/client/mqtt-client:z
+      - redis-server-cert:/tmp/edgex/secrets/redis/server:z
+      - nodered-cert:/tmp/edgex/secrets/nodered:z
+      - influxdb-cert:/tmp/edgex/secrets/influxdb:z
+      - grafana-cert:/tmp/edgex/secrets/grafana:z
+      - nginx-cert:/tmp/edgex/secrets/nginx:z
+    depends_on:
+      - security-bootstrapper
+      - vault
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  vault:
+    image: vault:1.11.8
+    container_name: vault
+    entrypoint: /edgex-init/vault_wait_install.sh
+    command: server
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-vault
+    user: "root:root" # Note that Vault is run under the 'vault' user, but entry point scripts need to first run as root
+    restart: always
+    cap_add:
+      - "IPC_LOCK"
+    environment:
+      <<: *security-common-variables
+      VAULT_ADDR: http://edgex-vault:8200
+      VAULT_CONFIG_DIR: /vault/config
+      VAULT_UI: "false"
+    tmpfs:
+      - /vault/config
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - edgex-init:/edgex-init:ro,z
+      - vault-file:/vault/file:z
+      - vault-logs:/vault/logs:z
+    depends_on:
+      - security-bootstrapper
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx
+    entrypoint: /edgex-init/nginx_wait_install.sh
+    networks:
+      - edgex-network
+    ports:
+      - "8443:8443"
+    restart: always
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - nginx-cert:/edgex/secrets/nginx:ro,z
+      - /etc/edgexpert/nginx.conf.xpert:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - security-bootstrapper
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  proxy-auth:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-security-proxy-auth:${EDGEXPERT_IMAGE_VERSION}
+    container_name: proxy-auth
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /security-proxy-auth
+    networks:
+      - edgex-network
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *security-common-variables
+      SERVICE_HOST: proxy-auth
+      DATABASES_PRIMARY_HOST: edgex-redis
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/security-proxy-auth:/tmp/edgex/secrets/security-proxy-auth:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  consul:
+    entrypoint: /edgex-init/consul_wait_install.sh
+    environment:
+      <<: *security-common-variables
+      EDGEX_USER: '2002'
+      EDGEX_GROUP: '2001'
+      ADD_REGISTRY_ACL_ROLES:
+      STAGEGATE_REGISTRY_ACL_BOOTSTRAPTOKENPATH: /tmp/edgex/secrets/consul-acl-token/bootstrap_token.json
+      STAGEGATE_REGISTRY_ACL_SENTINELFILEPATH: /consul/config/consul_acl_done
+      STAGEGATE_REGISTRY_ACL_MANAGEMENTTOKENPATH: /tmp/edgex/secrets/consul-acl-token/mgmt_token.json
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - consul-data:/consul/data:z
+      - consul-config:/consul/config:z
+      - consul-acl-token:/tmp/edgex/secrets/consul-acl-token:z
+      - /tmp/edgex/secrets/edgex-consul:/tmp/edgex/secrets/edgex-consul:ro,z
+    depends_on:
+      - security-bootstrapper
+      - vault
+
+  redis:
+    entrypoint: /edgex-init/redis_wait_install.sh
+    command: >
+      --tls-port 6379 --port 0
+      --tls-cert-file /tmp/edgex/secrets/redis/redis-server.crt
+      --tls-key-file /tmp/edgex/secrets/redis/redis-server.key
+      --tls-ca-cert-file /tmp/edgex/secrets/redis/ca.crt
+      --tls-auth-clients no
+    environment:
+      <<: *security-common-variables
+      DATABASECONFIG_NAME: redis.conf
+      DATABASECONFIG_PATH: /run/redis/conf
+    tmpfs:
+      - /run
+    volumes:
+      - db-data:/data:z
+      - edgex-init:/edgex-init:ro,z
+      - redis-config:/run/redis/conf:z
+      - /tmp/edgex/secrets/security-bootstrapper-redis:/tmp/edgex/secrets/security-bootstrapper-redis:ro,z
+      - redis-server-cert:/tmp/edgex/secrets/redis:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+
+  core-metadata:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /core-metadata ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/core-metadata:/tmp/edgex/secrets/core-metadata:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  core-data:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /core-data ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/core-data:/tmp/edgex/secrets/core-data:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  core-command:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /core-command ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/core-command:/tmp/edgex/secrets/core-command:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  core-keeper:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /core-keeper
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/core-keeper:/tmp/edgex/secrets/core-keeper:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  support-notifications:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /support-notifications ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/support-notifications:/tmp/edgex/secrets/support-notifications:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  support-scheduler:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /support-scheduler ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/support-scheduler:/tmp/edgex/secrets/support-scheduler:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  support-rulesengine:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /support-rulesengine ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/support-scheduler:/tmp/edgex/secrets/support-rulesengine:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  support-sparkplug:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /support-sparkplug ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+      SPARKPLUG_MQTTBROKER_AUTHMODE: ${SPARKPLUG_MQTTBROKER_AUTHMODE:-clientcert}
+      SPARKPLUG_MQTTBROKER_SECRETPATH: ${SPARKPLUG_MQTTBROKER_SECRETPATH:-mqtt-bus}
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/support-sparkplug:/tmp/edgex/secrets/support-sparkplug:ro,z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+
+  sys-mgmt:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /sys-mgmt-agent ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/sys-mgmt-agent:/tmp/edgex/secrets/sys-mgmt-agent:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  xpert-manager:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /edgexpert-manager ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/edgexpert-manager:/tmp/edgex/secrets/edgexpert-manager:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  # XRT device service
+  device-opc-ua:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-opc-ua:/tmp/edgex/secrets/device-opc-ua:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-bacnet-ip:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-bacnet-ip:/tmp/edgex/secrets/device-bacnet-ip:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-bacnet-mstp:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-bacnet-mstp:/tmp/edgex/secrets/device-bacnet-mstp:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-ble:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-ble:/tmp/edgex/secrets/device-ble:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-modbus:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-modbus:/tmp/edgex/secrets/device-modbus:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-s7:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-s7:/tmp/edgex/secrets/device-s7:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-gps:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-gps:/tmp/edgex/secrets/device-gps:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-ethernet-ip:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-ethernet-ip:/tmp/edgex/secrets/device-ethernet-ip:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  # Go device service
+  device-virtual:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /device-virtual ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-virtual:/tmp/edgex/secrets/device-virtual:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-rest:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /device-rest ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-rest:/tmp/edgex/secrets/device-rest:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-mqtt:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /device-mqtt ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-mqtt:/tmp/edgex/secrets/device-mqtt:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-websocket:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /device-websocket ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-websocket:/tmp/edgex/secrets/device-websocket:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-onvif-camera:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /device-onvif-camera ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-onvif-camera:/tmp/edgex/secrets/device-onvif-camera:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  device-usb-camera:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /docker-entrypoint.sh ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/device-usb-camera:/tmp/edgex/secrets/device-usb-camera:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  # Tool
+  kuiper:
+    entrypoint: /edgex-init/kuiper_wait_install.sh
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - kuiper-config:/tmp/kuiper:z
+    depends_on:
+      - security-bootstrapper
+      - secretstore-setup
+      - redis
+
+  mqtt-broker:
+    entrypoint: /edgex-init/mqttbroker_wait_install.sh
+    environment:
+      <<: *security-common-variables
+    #ports:
+    #  - "127.0.0.1:8883:8883"
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - mqtt-broker-config:/mosquitto/config:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  nodered:
+    entrypoint: /edgex-init/nodered_wait_install.sh
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - nodered-cert:/edgex/secrets/nodered:ro,z
+      - mqtt-client-cert:/edgex/secrets/mqtt-client:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  influxdb:
+    entrypoint: /edgex-init/influxdb_wait_install.sh
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - influxdb-cert:/edgex/secrets/influxdb:ro,z
+    depends_on:
+      - security-bootstrapper
+
+  grafana:
+    entrypoint: /edgex-init/grafana_wait_install.sh
+    environment:
+      <<: *security-common-variables
+    volumes:
+      - edgex-init:/edgex-init:ro,z
+      - grafana-cert:/edgex/secrets/grafana:ro,z
+    depends_on:
+      - security-bootstrapper

@@ -1,0 +1,1005 @@
+# IOTech Edge Xpert version: 2.3.0
+version: '3.7'
+
+networks:
+  edgex-network:
+    driver: bridge
+
+volumes:
+  db-data:
+  consul-config:
+  consul-data:
+  kuiper-data:
+  # EdgeXpert
+  asc-config:
+  grafana-data:
+  nodered-data:
+  portainer-data:
+  mosquitto-log:
+  mosquitto-data:
+  influx-data:
+  influx-config:
+  xpert-manager-data:
+  timescaledb-data:
+  # device service
+  device-modbus-data:
+  device-bacnet-ip-data:
+  device-bacnet-mstp-data:
+  device-ble-data:
+  device-opc-ua-data:
+  device-s7-data:
+  device-gps-data:
+  device-ethernet-ip-data:
+  # License
+  license-data:
+    external: true
+
+# all common shared environment variables defined here:
+x-common-env-variables: &common-variables
+  EDGEX_SECURITY_SECRET_STORE: "false"
+  CLIENTS_CORE_COMMAND_HOST: edgex-core-command
+  CLIENTS_CORE_DATA_HOST: edgex-core-data
+  CLIENTS_CORE_METADATA_HOST: edgex-core-metadata
+  CLIENTS_SUPPORT_NOTIFICATIONS_HOST: edgex-support-notifications
+  CLIENTS_SUPPORT_SCHEDULER_HOST: edgex-support-scheduler
+  CLIENTS_SYS_MGMT_AGENT_HOST: edgex-sys-mgmt-agent
+  DATABASES_PRIMARY_HOST: edgex-redis
+  MESSAGEQUEUE_TYPE: mqtt
+  MESSAGEQUEUE_PROTOCOL: mqtt
+  MESSAGEQUEUE_HOST: mqtt-broker
+  MESSAGEQUEUE_PORT: 1883
+  REGISTRY_HOST: ${REGISTRY_HOST:-edgex-core-keeper}
+  REGISTRY_PORT: ${REGISTRY_PORT:-59890}
+  REGISTRY_TYPE: ${REGISTRY_TYPE:-keeper}
+  # license
+  EDGEXPERT_LICENSE_PATH: /edgexpert/licenses/
+  EDGEX_STARTUP_DURATION: 300
+  EDGEX_STARTUP_INTERVAL: 3
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10mb"
+    max-file: "5"
+
+services:
+
+  #################################################################
+  # Registry Services
+  #################################################################
+
+  consul:
+    image: consul:1.13.7
+    container_name: consul
+    hostname: edgex-core-consul
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-core-consul
+    user: root:root
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - consul-config:/consul/config:z
+      - consul-data:/consul/data:z
+    logging: *default-logging
+
+  #################################################################
+  # Database Services
+  #################################################################
+
+  redis:
+    image: redis:7.0.5-alpine3.16
+    container_name: redis
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-redis
+    user: root:root
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - db-data:/data:z
+    logging: *default-logging
+
+  #################################################################
+  # Core Services
+  #################################################################
+
+  core-metadata:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-core-metadata:${EDGEXPERT_IMAGE_VERSION}
+    container_name: core-metadata
+    entrypoint: /core-metadata
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-core-metadata
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: core-metadata
+      NOTIFICATIONS_POSTDEVICECHANGES: ${NOTIFICATIONS_POSTDEVICECHANGES:-false}
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - redis
+      - support-notifications
+    logging: *default-logging
+
+  core-data:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-core-data:${EDGEXPERT_IMAGE_VERSION}
+    container_name: core-data
+    entrypoint: /core-data
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-core-data
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: core-data
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - redis
+      - core-metadata
+    logging: *default-logging
+
+  core-command:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-core-command:${EDGEXPERT_IMAGE_VERSION}
+    container_name: core-command
+    entrypoint: /core-command
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-core-command
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: core-command
+      MESSAGEQUEUE_INTERNAL_TYPE: mqtt
+      MESSAGEQUEUE_INTERNAL_PROTOCOL: mqtt
+      MESSAGEQUEUE_INTERNAL_HOST: mqtt-broker
+      MESSAGEQUEUE_INTERNAL_PORT: 1883
+      MESSAGEQUEUE_EXTERNAL_URL: tcp://mqtt-broker:1883
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - redis
+      - core-metadata
+    logging: *default-logging
+
+  core-keeper:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-core-keeper:${EDGEXPERT_IMAGE_VERSION}
+    container_name: core-keeper
+    entrypoint: /core-keeper
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-core-keeper
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: core-keeper
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - redis
+    logging: *default-logging
+
+  #################################################################
+  # Application Services
+  #################################################################
+
+  # for pull image purpose only
+  # the real usage is defined in app-service.yml
+  app-service:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-app-configurable:${EDGEXPERT_IMAGE_VERSION}
+
+  #################################################################
+  # Supporting Services
+  #################################################################
+
+  support-notifications:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-support-notifications:${EDGEXPERT_IMAGE_VERSION}
+    container_name: support-notifications
+    entrypoint: /support-notifications
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-support-notifications
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: support-notifications
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - redis
+    logging: *default-logging
+
+  support-scheduler:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-support-scheduler:${EDGEXPERT_IMAGE_VERSION}
+    container_name: support-scheduler
+    entrypoint: /support-scheduler
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-support-scheduler
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: support-scheduler
+      INTERVALACTIONS_SCRUBPUSHED_HOST: core-data
+      INTERVALACTIONS_SCRUBAGED_HOST: core-data
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - redis
+    logging: *default-logging
+
+  support-provision:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-support-provision:${EDGEXPERT_IMAGE_VERSION}
+    container_name: support-provision
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-support-provision
+    user: 2002:2001
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: support-provision
+      EDGEX_STARTUP_DURATION: 60
+    logging: *default-logging
+    #uncomment following volume binding and specify environment variable PROVISION_DATA to the directory hosting
+    #provision-data on the host, e.g. export PROVISION_DATA=/provision/data/on/your/host/
+    #volumes:
+    #  - ${PROVISION_DATA}:/provision-data
+
+  support-sparkplug:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-support-sparkplug:${EDGEXPERT_IMAGE_VERSION}
+    container_name: support-sparkplug
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-support-sparkplug
+    user: 2002:2001
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: support-sparkplug
+      SPARKPLUG_NAMESPACE: ${SPARKPLUG_NAMESPACE:-spBv1.0}
+      SPARKPLUG_GROUPID: ${SPARKPLUG_GROUPID:-group}
+      SPARKPLUG_EDGENODEID: ${SPARKPLUG_EDGENODEID:-node}
+      SPARKPLUG_PAYLOAD_METRICNAMEFORMAT: ${SPARKPLUG_PAYLOAD_METRICNAMEFORMAT:-}
+      SPARKPLUG_MQTTBROKER_URL: ${SPARKPLUG_MQTTBROKER_URL:-tcp://mqtt-broker:1883}
+    logging: *default-logging
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - core-metadata
+      - support-notifications
+
+  support-rulesengine:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-support-rulesengine:${EDGEXPERT_IMAGE_VERSION}
+    container_name: support-rulesengine
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-support-rulesengine
+    user: 2002:2001
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: support-rulesengine
+    logging: *default-logging
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - core-metadata
+      - core-command
+
+  #################################################################
+  # System Management
+  #################################################################
+
+  sys-mgmt:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-sys-mgmt-agent:${EDGEXPERT_IMAGE_VERSION}
+    container_name: sys-mgmt
+    entrypoint: /sys-mgmt-agent
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-sys-mgmt-agent
+    user: 2002:${HOST_DOCKER_GROUP_ID:-}
+    restart: always
+    security_opt:
+      - label:disable
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: sys-mgmt
+      EXECUTORPATH: /sys-mgmt-executor
+      METRICSMECHANISM: executor
+      EDGEXPERT_IMAGE_REPO:
+      EDGEXPERT_IMAGE_VERSION:
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:z
+      - license-data:/edgexpert/licenses/:ro
+      - asc-config:/edgexpert/:z
+    depends_on:
+      - consul
+      - core-command
+      - core-data
+      - core-metadata
+      - support-notifications
+      - support-scheduler
+    logging: *default-logging
+
+  #################################################################
+  # Management Console
+  #################################################################
+
+  xpert-manager:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-iotech-manager:${EDGEXPERT_IMAGE_VERSION}
+    container_name: xpert-manager
+    hostname: xpert-manager
+    entrypoint: /edgexpert-manager
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    ports:
+      - "9090:9090"
+    user: 2002:2001
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: xpert-manager
+      TLS_ENABLE: "false"
+      TLS_KEY_PATH:
+      TLS_CERT_PATH:
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - xpert-manager-data:/xpert-manager/data
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - redis
+      - sys-mgmt
+    logging: *default-logging
+
+  #################################################################
+  # Device Services
+  #################################################################
+
+  device-opc-ua:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-opc-ua:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-opc-ua
+    hostname: device-opc-ua
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-opc-ua
+      LDSName:
+      DiscoveryCertificate:
+      DiscoveryKey:
+      DiscoveryUsername:
+      DiscoveryPassword:
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-opc-ua-data:/opt/iotech/xrt/config
+      # - ${CLIENT_KEYS_PATH}:/opt/iotech/xrt/config/keys
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+
+  device-bacnet-ip:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-bacnet-ip:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-bacnet-ip
+    hostname: device-bacnet-ip
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    restart: always
+    read_only: true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-bacnet-ip
+      ## Driver Options
+    #      BACNET_NETWORK_INTERFACE:
+    #      BACNET_PORT: 4788
+    #      BACNET_APDU_TIMEOUT: 3000
+    #      BACNET_APDU_RETRIES: 3
+    #      BACNET_MULTI_BATCH_SIZE: 20
+    #      BACNET_MULTI_READ: "true"
+    #      BACNET_MULTI_WRITE: "true"
+    #      BACNET_CANCEL_STALE_COV: "true"
+    #      BACNET_BBMD_ADDRESS:
+    #      BACNET_BBMD_PORT: 47808
+    #      BACNET_BBMD_TIME_TO_LIVE: 65535
+    #      BACNET_DEFAULT_DISCOVERY_MODE: ALL
+    #      BACNET_DISCOVERY_PROPERTIES: "[]"
+    #      BACNET_DISCOVERY_OBJECTS: "[]"
+    #      BACNET_DISCOVERY_DURATION: 3000
+    #      BACNET_DISCOVERY_RETRIES: 1
+      ## Driver Options - DeviceObject
+    #      BACNET_INSTANCE_ID: 0
+    #      BACNET_OBJECT_NAME: "IOTech Edge XRT BACnet Device Service Component"
+    #      BACNET_VENDOR_NAME: IOTech
+    #      BACNET_VENDOR_ID: 13
+    #      BACNET_LOCATION: UK
+    #      BACNET_DESCRIPTION: "IOTech Edge XRT BACnet Device Service Component"
+    #      BACNET_MODEL_NAME: "IOTech Edge XRT BACnet"
+    #      BACNET_APPLICATION_SOFTWARE: "2.0"
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-bacnet-ip-data:/opt/iotech/xrt/config
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-bacnet-mstp:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-bacnet-mstp:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-bacnet-mstp
+    hostname: device-bacnet-mstp
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    restart: always
+    read_only: true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-bacnet-mstp
+      ## Driver Options
+    #      BACNET_SERIAL_INTERFACE:
+    #      BACNET_APDU_TIMEOUT: 60000
+    #      BACNET_APDU_RETRIES: 3
+    #      BACNET_MULTI_BATCH_SIZE: 20
+    #      BACNET_MULTI_READ: "true"
+    #      BACNET_MULTI_WRITE: "true"
+    #      BACNET_CANCEL_STALE_COV: "true"
+    #      BACNET_DEFAULT_DISCOVERY_MODE: ALL
+    #      BACNET_DISCOVERY_PROPERTIES: "[]"
+    #      BACNET_DISCOVERY_OBJECTS: "[]"
+    #      BACNET_DISCOVERY_DURATION: 3000
+    #      BACNET_DISCOVERY_RETRIES: 1
+      ## Driver Options - DeviceObject
+    #      BACNET_INSTANCE_ID: 0
+    #      BACNET_OBJECT_NAME: "IOTech Edge XRT BACnet Device Service Component"
+    #      BACNET_VENDOR_NAME: IOTech
+    #      BACNET_VENDOR_ID: 13
+    #      BACNET_LOCATION: UK
+    #      BACNET_DESCRIPTION: "IOTech Edge XRT BACnet Device Service Component"
+    #      BACNET_MODEL_NAME: "IOTech Edge XRT BACnet"
+    #      BACNET_APPLICATION_SOFTWARE: "2.0"
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-bacnet-mstp-data:/opt/iotech/xrt/config
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+    # devices:
+    #   - /dev/ttyUSB0
+
+  device-modbus:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-modbus:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-modbus
+    hostname: device-modbus
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-modbus
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-modbus-data:/opt/iotech/xrt/config
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-s7:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-s7:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-s7
+    hostname: device-s7
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    privileged: true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-s7
+      SERVICE_SERVERBINDADDR: 0.0.0.0
+      XRTCONTROL_USEXRTSCHEDULE: "true"
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-s7-data:/opt/iotech/xrt/config
+      - /sys/:/sys/
+      - /proc/1/ns/:/rootns
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-gps:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-gps:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-gps
+    hostname: device-gps
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-gps
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-gps-data:/opt/iotech/xrt/config
+    logging: *default-logging
+
+  device-ble:
+   image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-ble:${EDGEXPERT_IMAGE_VERSION}
+   container_name: device-ble
+   hostname: device-ble
+   entrypoint: /docker-entrypoint.sh
+   command: ${EDGEXPERT_USE_CONSUL:-}
+   networks:
+     - edgex-network
+   privileged: true
+   restart: always
+   read_only: true
+   security_opt:
+     - no-new-privileges:true
+   environment:
+     <<: *common-variables
+     SERVICE_HOST: device-ble
+     DEVICE_DISCOVERY_ENABLED: "true"
+     BLE_INTERFACE: "hci0"
+   volumes:
+     # use host timezone
+     - /etc/localtime:/etc/localtime:ro
+     - license-data:/edgexpert/licenses/:ro
+     - device-ble-data:/opt/iotech/xrt/config
+     - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
+   logging: *default-logging
+
+  device-ethernet-ip:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-ethernet-ip:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-ethernet-ip
+    hostname: device-ethernet-ip
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-ethernet-ip
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+      - device-ethernet-ip-data:/opt/iotech/xrt/config
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  #################################################################
+  # Go Device Services
+  #################################################################
+
+  device-virtual:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-virtual:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-virtual
+    hostname: device-virtual
+    entrypoint: /device-virtual
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-virtual
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-rest:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-rest:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-rest
+    hostname: device-rest
+    entrypoint: /device-rest
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-rest
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-mqtt:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-mqtt:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-mqtt
+    hostname: device-mqtt
+    entrypoint: /device-mqtt
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-mqtt
+      # MQTT broker connection settings
+      Driver_Host: mqtt-broker
+      # Driver_Port: 1883
+      # Driver_User: admin
+      # Driver_Password: public
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-websocket:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-websocket:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-websocket
+    hostname: device-websocket
+    entrypoint: /device-websocket
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-websocket
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-onvif-camera:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-onvif-camera:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-onvif-camera
+    hostname: device-onvif-camera
+    entrypoint: /device-onvif-camera
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    networks:
+      - edgex-network
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-onvif-camera
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - license-data:/edgexpert/licenses/:ro
+    depends_on:
+      - consul
+      - core-metadata
+    logging: *default-logging
+
+  device-usb-camera:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-device-usb-camera:${EDGEXPERT_IMAGE_VERSION}
+    container_name: device-usb-camera
+    hostname: device-usb-camera
+    entrypoint: /docker-entrypoint.sh
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    read_only: true
+    restart: always
+    networks:
+      - edgex-network
+    environment:
+      <<: *common-variables
+      SERVICE_HOST: device-usb-camera
+    depends_on:
+      - consul
+      - core-metadata
+    security_opt:
+      - no-new-privileges:true
+    user: root:root
+    device_cgroup_rules:
+      - 'c 81:* rw' # c:character device 81:device major number(81=webcam) *:device minor number rw:read/write
+    volumes:
+      - /dev:/dev
+      - /run/udev:/run/udev:ro
+      - license-data:/edgexpert/licenses/:ro
+
+  #################################################################
+  # Tools
+  #################################################################
+
+  portainer:
+    image: portainer/portainer-ce:2.16.2-alpine
+    container_name: portainer
+    command: -H unix:///var/run/docker.sock
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-portainer
+    ports:
+      - "9000:9000"
+      - "8000:8000"
+    restart: always
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    logging: *default-logging
+
+  influxdb:
+    image: influxdb:2.6.1-alpine
+    container_name: influxdb
+    hostname: influxdb
+    networks:
+      - edgex-network
+    restart: always
+    user: influxdb:influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin-password
+      DOCKER_INFLUXDB_INIT_ORG: my-org
+      DOCKER_INFLUXDB_INIT_BUCKET: my-bucket
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: custom-token
+    volumes:
+      - influx-data:/var/lib/influxdb2
+      - influx-config:/etc/influxdb2
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:9.3.8
+    container_name: grafana
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-grafana
+    ports:
+      - "3000:3000"
+    restart: always
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - grafana-data:/var/lib/grafana
+    logging: *default-logging
+
+  nodered:
+    image: nodered/node-red:3.0.2-18
+    container_name: nodered
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-nodered
+    ports:
+      - "1880:1880"
+    restart: always
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - nodered-data:/data
+    logging: *default-logging
+
+  mqtt-broker:
+    command: "/usr/sbin/mosquitto -c /mosquitto-no-auth.conf"
+    image: eclipse-mosquitto:2.0.15
+    container_name: mqtt-broker
+    hostname: mqtt-broker
+    networks:
+      - edgex-network
+    restart: always
+    read_only: true
+    user: 2002:2001
+    volumes:
+      - mosquitto-log:/mosquitto/log
+      - mosquitto-data:/mosquitto/data
+    logging: *default-logging
+
+  bacnet-sim:
+    image: iotechsys/bacnet-sim:2.0
+    container_name: bacnet-sim
+    hostname: bacnet-sim
+    command: "--script /example-scripts/device-service-example.lua --instance 123 --name SimpleServer"
+    networks:
+      - edgex-network
+    restart: always
+    environment:
+      RUN_MODE: "IP"
+    logging: *default-logging
+
+  kuiper:
+    image: lfedge/ekuiper:1.7.6-alpine
+    container_name: kuiper
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-kuiper
+    restart: always
+    user: "kuiper:kuiper"
+    read_only: true
+    environment:
+      EDGEX__DEFAULT__PORT: 1883
+      EDGEX__DEFAULT__PROTOCOL: tcp
+      EDGEX__DEFAULT__SERVER: mqtt-broker
+      EDGEX__DEFAULT__TOPIC: edgex/events/#
+      EDGEX__DEFAULT__TYPE: mqtt
+      EDGEX__DEFAULT__OPTIONAL__KEEPALIVE: "50"
+      EDGEX__DEFAULT__MESSAGETYPE: request
+      KUIPER__BASIC__CONSOLELOG: "true"
+      KUIPER__BASIC__RESTPORT: 59720
+      KUIPER__BASIC__DEBUG: "false"
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - kuiper-data:/kuiper/data:z
+    logging: *default-logging
+
+  timescaledb:
+    image: timescale/timescaledb:2.9.3-pg14
+    container_name: timescaledb
+    hostname: timescaledb
+    networks:
+      - edgex-network
+    environment:
+      POSTGRES_DB: edgex
+      POSTGRES_USER: iotechuser
+      POSTGRES_PASSWORD: p@55w0rd
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - timescaledb-data:/var/lib/postgresql/data:z
+    logging: *default-logging

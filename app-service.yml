@@ -1,0 +1,59 @@
+# IOTech Edge Xpert version: 2.3.0
+version: "3.7"
+
+networks:
+  default:
+    external:
+      name: edgexpert_edgex-network
+
+volumes:
+  license-data:
+    external: true
+
+services:
+  #################################################################
+  # Application Services
+  #################################################################
+  app-service:
+    image: iotechsys/${EDGEXPERT_IMAGE_REPO}-app-configurable:${EDGEXPERT_IMAGE_VERSION}
+    container_name: app-${EDGEX_PROFILE:-}
+    hostname: app-${EDGEX_PROFILE:-}
+    entrypoint: /app-service-configurable
+    command: ${EDGEXPERT_USE_CONSUL:-}
+    user: 2002:2001
+    read_only: true
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      EDGEX_SECURITY_SECRET_STORE: "false"
+      SERVICE_HOST: app-${EDGEX_PROFILE:-}
+      CLIENTS_CORE_COMMAND_HOST: edgex-core-command
+      CLIENTS_CORE_DATA_HOST: edgex-core-data
+      CLIENTS_CORE_METADATA_HOST: edgex-core-metadata
+      CLIENTS_SUPPORT_NOTIFICATIONS_HOST: edgex-support-notifications
+      CLIENTS_SUPPORT_SCHEDULER_HOST: edgex-support-scheduler
+      DATABASE_HOST: edgex-redis
+      TRIGGER_EDGEXMESSAGEBUS_TYPE: mqtt
+      TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PROTOCOL: mqtt
+      TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_HOST: mqtt-broker
+      TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PORT: 1883
+      TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PROTOCOL: mqtt
+      TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_HOST: mqtt-broker
+      TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PORT: 1883
+      REGISTRY_HOST: ${REGISTRY_HOST:-edgex-core-keeper}
+      REGISTRY_PORT: ${REGISTRY_PORT:-59890}
+      REGISTRY_TYPE: ${REGISTRY_TYPE:-keeper}
+      EDGEX_PROFILE:
+      EDGEX_STARTUP_DURATION: 300
+      EDGEX_STARTUP_INTERVAL: 3
+    volumes:
+      # use host timezone
+      - /etc/localtime:/etc/localtime:ro
+      - $HOME/.edgexpert/res:/res
+      - license-data:/edgexpert/licenses/:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"

@@ -1,0 +1,108 @@
+# IOTech Edge Xpert version: 2.3.0
+version: "3.7"
+
+services:
+  consul:
+    ports:
+      - "8500:8500"
+
+  core-metadata:
+    ports:
+      - "59881:59881"
+
+  core-data:
+    ports:
+      - "59880:59880"
+
+  core-command:
+    ports:
+      - "59882:59882"
+
+  core-keeper:
+    ports:
+      - "59890:59890"
+
+  support-notifications:
+    ports:
+      - "59860:59860"
+
+  support-scheduler:
+    ports:
+      - "59861:59861"
+
+  support-rulesengine:
+    ports:
+      - "59862:59862"
+
+  sys-mgmt:
+    ports:
+      - "58890:58890"
+
+  device-opc-ua:
+    ports:
+      - "59953:59953"
+
+  device-bacnet-ip:
+    ports:
+      - "59980:59980"
+
+  device-bacnet-mstp:
+    ports:
+      - "59981:59981"
+
+  device-modbus:
+    ports:
+      - "59901:59901"
+
+  device-s7:
+    ports:
+      - "59958:59958"
+
+  device-gps:
+    ports:
+      - "59987:59987"
+
+  device-ble:
+    ports:
+      - "59984:59984"
+
+  device-ethernet-ip:
+    ports:
+      - "59959:59959"
+
+  device-virtual:
+    ports:
+      - "59900:59900"
+
+  device-rest:
+    ports:
+      - "59986:59986"
+
+  device-mqtt:
+    ports:
+      - "59982:59982"
+
+  device-websocket:
+    ports:
+      - "59950:59950"
+
+  device-onvif-camera:
+    ports:
+      - "59985:59985"
+
+  device-usb-camera:
+    ports:
+      - "59983:59983"
+      - "8554:8554/tcp"
+
+  influxdb:
+    ports:
+      - "8086:8086"
+
+  mqtt-broker:
+    ports:
+      - "1883:1883"
+
+  kuiper:
+    ports:
+      - "59720:59720"

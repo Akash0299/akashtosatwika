@@ -1,0 +1,50 @@
+# IOTech Edge Xpert version: 2.3.0
+version: "3.7"
+
+volumes:
+  edgexpert_edgex-init:
+    external: true
+
+services:
+  app-service:
+    entrypoint: /edgex-init/ready_to_run_wait_install.sh
+    command: /app-service-configurable ${EDGEXPERT_USE_CONSUL:-}
+    environment:
+      EDGEX_SECURITY_SECRET_STORE: "true"
+      SECRETSTORE_PATH:
+      SECRETSTORE_TOKENFILE:
+      SECRETSTORE_HOST: edgex-vault
+      SECRETSTORE_PORT: '8200'
+      STAGEGATE_BOOTSTRAPPER_HOST: edgex-security-bootstrapper
+      STAGEGATE_BOOTSTRAPPER_STARTPORT: '54321'
+      STAGEGATE_DATABASE_HOST: edgex-redis
+      STAGEGATE_DATABASE_PORT: '6379'
+      STAGEGATE_DATABASE_READYPORT: '6379'
+      STAGEGATE_READY_TORUNPORT: '54329'
+      STAGEGATE_REGISTRY_HOST: edgex-core-consul
+      STAGEGATE_REGISTRY_PORT: '8500'
+      STAGEGATE_REGISTRY_READYPORT: '54324'
+      STAGEGATE_SECRETSTORESETUP_HOST: edgex-security-secretstore-setup
+      STAGEGATE_SECRETSTORESETUP_TOKENS_READYPORT: '54322'
+      STAGEGATE_WAITFOR_TIMEOUT: 300s
+      STAGEGATE_WAITFOR_RETRYINTERVAL: 3s
+      #SPIFFE_ENDPOINTSOCKET: /tmp/edgex/secrets/spiffe/public/api.sock
+      #SPIFFE_TRUSTBUNDLE_PATH: /tmp/edgex/secrets/spiffe/trust/bundle
+      #SPIFFE_TRUSTDOMAIN: edgexfoundry.org
+      # if your app-service uses the default EdgeX Message Bus (i.e. MQTT broker) and the MQTT broker has TLS enabled,
+      # set the TRIGGER_EDGEXMESSAGEBUS* variables to have the following values
+      # TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PROTOCOL: tcps
+      # TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PORT: 8883
+      # TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PROTOCOL: tcps
+      # TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PORT: 8883
+      # TRIGGER_EDGEXMESSAGEBUS_OPTIONAL_AUTHMODE: clientcert
+      # you can set values on the host instead of editing this file, for example: export TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PROTOCOL=tcps
+      TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PROTOCOL: ${TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PROTOCOL:-tcp}
+      TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PORT: ${TRIGGER_EDGEXMESSAGEBUS_SUBSCRIBEHOST_PORT:-1883}
+      TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PROTOCOL: ${TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PROTOCOL:-tcp}
+      TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PORT: ${TRIGGER_EDGEXMESSAGEBUS_PUBLISHHOST_PORT:-1883}
+      TRIGGER_EDGEXMESSAGEBUS_OPTIONAL_AUTHMODE: ${TRIGGER_EDGEXMESSAGEBUS_OPTIONAL_AUTHMODE:-none}
+      TRIGGER_EDGEXMESSAGEBUS_OPTIONAL_SKIPCERTVERIFY: ${TRIGGER_EDGEXMESSAGEBUS_OPTIONAL_SKIPCERTVERIFY:-true}
+    volumes:
+      - edgexpert_edgex-init:/edgex-init:ro,z
+      - /tmp/edgex/secrets/:/tmp/edgex/secrets/:ro,z

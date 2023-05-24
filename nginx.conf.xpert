@@ -1,0 +1,78 @@
+events { }
+
+http {
+    resolver 127.0.0.11;
+
+    map $1 $upstream_host {
+        core-consul core-consul:8500;
+        core-data core-data:59880;
+        core-metadata core-metadata:59881;
+        core-command core-command:59882;
+        core-keeper core-keeper:59890;
+        support-notifications support-notifications:59860;
+        support-scheduler support-scheduler:59861;
+        support-rulesengine support-rulesengine:59862;
+        sys-mgmt-agent sys-mgmt:58890;
+        rules-engine kuiper:59720;
+        device-virtual device-virtual:59900;
+        device-rest device-rest:59986;
+        device-mqtt device-mqtt:59982;
+        device-opc-ua device-opc-ua:59953;
+        device-bacnet-ip device-bacnet-ip:59980;
+        device-bacnet-mstp device-bacnet-mstp:59981;
+        device-modbus device-modbus:59901;
+        device-s7 device-s7:59958;
+        device-gps device-gps:59987;
+        device-ble device-ble:59984;
+        device-onvif-camera device-onvif-camera:59985;
+        device-usb-camera device-usb-camera:59983;
+        device-ethernet-ip device-ethernet-ip:59959;
+    }
+
+    server {
+        listen 8443 ssl;
+        ssl_certificate /edgex/secrets/nginx/nginx.crt;
+        ssl_certificate_key /edgex/secrets/nginx/nginx.key;
+        error_page 500 @process_proxy_auth_error;
+
+        location ~ ^/([\w'-]+)/(.+)$ {
+            auth_request /_auth-jwt;
+            auth_request_set $backend_status $upstream_status;
+            
+            # Use $request_uri block to pass full original request URI (with arguments)
+            if ($request_uri ~* ^/([\w'-]+)/(.+)$) {
+               proxy_pass http://$upstream_host/$2;
+            }
+        }
+
+        location = /_auth-jwt {
+            internal;
+
+            proxy_method GET;
+            proxy_pass_request_body off;
+            proxy_pass_request_headers on;
+            proxy_set_header Content-Length "";
+
+            # required for proxy-auth RBAC authorization
+            proxy_set_header X-Original-Uri $request_uri;
+            proxy_set_header X-Original-Method $request_method;
+
+            proxy_pass http://proxy-auth:59842/api/v2/jwt-auth;
+        }
+
+        location @process_proxy_auth_error {
+            if ($backend_status = 400) {
+                return 400;
+            } 
+            if ($backend_status = 401) {
+                return 401;
+            } 
+            if ($backend_status = 403) {
+                return 403;
+            } 
+            if ($backend_status = 500) {
+                return 500;
+            }
+        }
+    }
+}
